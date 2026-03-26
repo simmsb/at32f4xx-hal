@@ -18,7 +18,6 @@ pub mod pwm;
 pub use pwm::*;
 
 pub mod hal;
-pub use hal::*;
 
 /// Timer wrapper.
 ///
@@ -312,7 +311,7 @@ macro_rules! tmr {
             }
             #[inline(always)]
             unsafe fn set_auto_reload_unchecked(&mut self, pr: u32) {
-                self.pr().write(|w| w.bits(pr.try_into().unwrap()))
+                self.pr().write(|w| unsafe { w.bits(pr.try_into().unwrap()) });
             }
             #[inline(always)]
             fn set_auto_reload(&mut self, pr: u32) -> Result<(), Error> {
@@ -431,7 +430,7 @@ macro_rules! tmr {
                 fn set_cc_value(c: u8, value: u32) {
                     let tmr = unsafe { &*<$TMR>::ptr() };
                     if c < Self::CH_NUMBER {
-                        tmr.cdt(c as usize).write(|w| unsafe { w.bits(value.try_into().unwrap()) })
+                        tmr.cdt(c as usize).write(|w| unsafe { w.bits(value.try_into().unwrap()) });
                     }
                 }
 
@@ -471,7 +470,7 @@ macro_rules! tmr {
                     }
                     fn set_dtc_value(value: u8) {
                         let tmr = unsafe { &*<$TMR>::ptr() };
-                        tmr.brk().modify(|_,w| w.dtc().bits(value));
+                        tmr.brk().modify(|_,w| unsafe { w.dtc().bits(value) });
                     }
                     fn read_dtc_value() -> u8 {
                         let tmr = unsafe { &*<$TMR>::ptr() };
@@ -516,7 +515,6 @@ macro_rules! tmr {
 
     };
 }
-use tmr;
 
 // macro_rules! with_dmar {
 //     ($TMR:ty, $memsize:ty) => {

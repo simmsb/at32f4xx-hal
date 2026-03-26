@@ -100,7 +100,7 @@ mod blocking {
     use core::ops::Deref;
 
     use super::super::{Instance, RegisterBlockImpl, Rx, Serial, Tx};
-    use embedded_io::{ErrorKind, ErrorType, Read, Write};
+    use embedded_io::{ErrorKind, ErrorType, Write};
     use nb::block;
 
     impl<USART: Instance, WORD> ErrorType for Serial<USART, WORD> {
@@ -135,7 +135,10 @@ mod blocking {
     {
         fn write(&mut self, bytes: &[u8]) -> Result<usize, Self::Error> {
             for &b in bytes {
-                block!(self.usart.write_u8(b));
+                match block!(self.usart.write_u8(b)) {
+                    Ok(_) => {},
+                    Err(_) => { return Err(Self::Error::Other) },
+                };
             }
             Ok(bytes.len())
         }

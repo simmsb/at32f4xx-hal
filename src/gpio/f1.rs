@@ -2,7 +2,7 @@ use super::*;
 
 pub use super::Input as DefaultMode;
 
-pub impl<const P: char, const N: u8, MODE> Pin<P, N, MODE>
+impl<const P: char, const N: u8, MODE> Pin<P, N, MODE>
 where
     MODE: marker::OutputSpeed,
 {
@@ -31,7 +31,7 @@ where
     }
 }
 
-pub impl<const P: char, const N: u8, MODE> Pin<P, N, MODE>
+impl<const P: char, const N: u8, MODE> Pin<P, N, MODE>
 where
     MODE: marker::Active,
 {
@@ -49,12 +49,12 @@ where
                 0..=7 => unsafe {
                     (*Gpio::<P>::ptr())
                         .cfglr()
-                        .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3))))
+                        .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3))));
                 },
                 8..=15 => unsafe {
                     (*Gpio::<P>::ptr())
                         .cfghr()
-                        .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3))))
+                        .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3))));
                 },
                 _ => unreachable!(),
             }
@@ -63,19 +63,19 @@ where
                 0..=7 => unsafe {
                     (*Gpio::<P>::ptr()).cfglr().modify(|r, w| {
                         w.bits(r.bits() & !(0b11 << (offset + 2)) | (0b10 << (offset + 2)))
-                    })
+                    });
                 },
                 8..=15 => unsafe {
                     (*Gpio::<P>::ptr()).cfghr().modify(|r, w| {
                         w.bits(r.bits() & !(0b11 << (offset + 2)) | (0b10 << (offset + 2)))
-                    })
+                    });
                 },
                 _ => unreachable!(),
             }
             unsafe {
                 (*Gpio::<P>::ptr())
                     .odt()
-                    .modify(|r, w| w.bits(r.bits() & !(0b1 << N) | (value << N)))
+                    .modify(|r, w| w.bits(r.bits() & !(0b1 << N) | (value << N)));
             }
         }
     }
@@ -101,6 +101,91 @@ where
             self.internal_resistor(Pull::Down)
         } else {
             self.internal_resistor(Pull::None)
+        }
+    }
+}
+
+impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> PinSpeed for Bus<P, SHIFT, MASK, MODE>
+where
+    MODE: marker::OutputSpeed,
+{
+    #[inline(always)]
+    fn set_speed(&mut self, speed: Speed) {
+        for n in 0..16u16 {
+            if (MASK & (1 << n)) == 0 {
+                continue;
+            }
+
+            let offset = 4 * n;
+            match n {
+                0..=7 => unsafe {
+                    (*Gpio::<P>::ptr()).cfglr().modify(|r, w| {
+                        w.bits((r.bits() & !(0b11 << offset)) | ((speed as u32) << offset))
+                    });
+                },
+                8..=15 => unsafe {
+                    (*Gpio::<P>::ptr()).cfghr().modify(|r, w| {
+                        w.bits((r.bits() & !(0b11 << offset)) | ((speed as u32) << offset))
+                    });
+                },
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> PinPull for Bus<P, SHIFT, MASK, MODE>
+where
+    MODE: marker::Active,
+{
+    #[inline(always)]
+    fn set_internal_resistor(&mut self, resistor: Pull) {
+        for n in 0..16u16 {
+            if (MASK & (1 << n)) == 0 {
+                continue;
+            }
+
+            let offset = 4 * n;
+            let value = match resistor {
+                Pull::Down => 0,
+                Pull::Up => 1,
+                _ => 2,
+            };
+
+            if resistor == Pull::None {
+                match n {
+                    0..=7 => unsafe {
+                        (*Gpio::<P>::ptr())
+                            .cfglr()
+                            .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3))));
+                    },
+                    8..=15 => unsafe {
+                        (*Gpio::<P>::ptr())
+                            .cfghr()
+                            .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3))));
+                    },
+                    _ => unreachable!(),
+                }
+            } else {
+                match n {
+                    0..=7 => unsafe {
+                        (*Gpio::<P>::ptr()).cfglr().modify(|r, w| {
+                            w.bits(r.bits() & !(0b11 << (offset + 2)) | (0b10 << (offset + 2)))
+                        });
+                    },
+                    8..=15 => unsafe {
+                        (*Gpio::<P>::ptr()).cfghr().modify(|r, w| {
+                            w.bits(r.bits() & !(0b11 << (offset + 2)) | (0b10 << (offset + 2)))
+                        });
+                    },
+                    _ => unreachable!(),
+                }
+                unsafe {
+                    (*Gpio::<P>::ptr())
+                        .odt()
+                        .modify(|r, w| w.bits(r.bits() & !(0b1 << n) | (value << n)));
+                }
+            }
         }
     }
 }

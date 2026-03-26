@@ -79,7 +79,7 @@ pub trait Enable: CrmBus {
     ///
     /// Enables peripheral. Takes access to CRM internally
     unsafe fn enable_unchecked() {
-        let crm = &*pac::CRM::ptr();
+        let crm = unsafe { pac::CRM::ptr().as_ref().unwrap() };
         Self::enable(crm);
     }
 
@@ -87,8 +87,8 @@ pub trait Enable: CrmBus {
     ///
     /// Disables peripheral. Takes access to CRM internally
     unsafe fn disable_unchecked() {
-        let crm = pac::CRM::ptr();
-        Self::disable(&*crm);
+        let crm = unsafe { pac::CRM::ptr().as_ref().unwrap() };
+        Self::disable(crm);
     }
 }
 
@@ -102,8 +102,8 @@ pub trait Reset: CrmBus {
     ///
     /// Resets peripheral. Takes access to CRM internally
     unsafe fn reset_unchecked() {
-        let crm = pac::CRM::ptr();
-        Self::reset(&*crm);
+        let crm = unsafe { pac::CRM::ptr().as_ref().unwrap() };
+        Self::reset(crm);
     }
 }
 

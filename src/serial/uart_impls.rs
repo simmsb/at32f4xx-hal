@@ -168,11 +168,11 @@ macro_rules! uartCommon {
                 });
 
                 match config.dma {
-                    DmaConfig::Tx => register_block.ctrl3().write(|w| w.dmaten().enable()),
-                    DmaConfig::Rx => register_block.ctrl3().write(|w| w.dmaren().enable()),
-                    DmaConfig::TxRx => register_block
+                    DmaConfig::Tx => {register_block.ctrl3().write(|w| w.dmaten().enable());},
+                    DmaConfig::Rx => {register_block.ctrl3().write(|w| w.dmaren().enable());},
+                    DmaConfig::TxRx => {register_block
                         .ctrl3()
-                        .write(|w| w.dmaren().enable().dmaten().enable()),
+                        .write(|w| w.dmaren().enable().dmaten().enable());},
                     DmaConfig::None => {}
                 }
 
@@ -255,27 +255,27 @@ macro_rules! uartCommon {
             }
 
             fn listen_rxne(&self) {
-                self.ctrl1().modify(|_, w| w.rdbfien().enable())
+                self.ctrl1().modify(|_, w| w.rdbfien().enable());
             }
 
             fn unlisten_rxne(&self) {
-                self.ctrl1().modify(|_, w| w.rdbfien().disable())
+                self.ctrl1().modify(|_, w| w.rdbfien().disable());
             }
 
             fn listen_idle(&self) {
-                self.ctrl1().modify(|_, w| w.idleien().enable())
+                self.ctrl1().modify(|_, w| w.idleien().enable());
             }
 
             fn unlisten_idle(&self) {
-                self.ctrl1().modify(|_, w| w.idleien().disable())
+                self.ctrl1().modify(|_, w| w.idleien().disable());
             }
 
             fn listen_txe(&self) {
-                self.ctrl1().modify(|_, w| w.tdbeien().enable())
+                self.ctrl1().modify(|_, w| w.tdbeien().enable());
             }
 
             fn unlisten_txe(&self) {
-                self.ctrl1().modify(|_, w| w.tdbeien().disable())
+                self.ctrl1().modify(|_, w| w.tdbeien().disable());
             }
 
             fn listen(&self, event: Event) {
@@ -283,7 +283,7 @@ macro_rules! uartCommon {
                     Event::Rxne => self.ctrl1().modify(|_, w| w.rdbfien().enable()),
                     Event::Txe => self.ctrl1().modify(|_, w| w.tdbeien().enable()),
                     Event::Idle => self.ctrl1().modify(|_, w| w.idleien().enable()),
-                }
+                };
             }
 
             fn unlisten(&self, event: Event) {
@@ -291,7 +291,7 @@ macro_rules! uartCommon {
                     Event::Rxne => self.ctrl1().modify(|_, w| w.rdbfien().disable()),
                     Event::Txe => self.ctrl1().modify(|_, w| w.tdbeien().disable()),
                     Event::Idle => self.ctrl1().modify(|_, w| w.idleien().disable()),
-                }
+                };
             }
 
             fn peri_address(&self) -> u32 {

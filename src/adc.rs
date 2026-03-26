@@ -553,6 +553,9 @@ macro_rules! adc {
                 ))]
                 adc!(additionals: $adc_type => ($common_type));
 
+                #[cfg(any(feature = "at32f415"))]
+                fn calibrate(&mut self) {}
+
                 pub fn $constructor_fn_name(adc: pac::$adc_type, reset: bool, config: config::AdcConfig) -> Adc<pac::$adc_type> {
                     unsafe {
                         // All ADCs share the same reset interface.
@@ -739,7 +742,7 @@ macro_rules! adc {
                 /// Reset the sequence
                 pub fn reset_sequence(&mut self) {
                     //The reset state is One conversion selected
-                    self.adc_reg.osq1().modify(|_, w| w.oclen().bits(config::Sequence::One.into()));
+                    self.adc_reg.osq1().modify(|_, w| unsafe{w.oclen().bits(config::Sequence::One.into())});
                 }
 
                 /// Returns the address of the ADC data register. Primarily useful for configuring DMA.
@@ -762,7 +765,7 @@ macro_rules! adc {
                     self.adc_reg.osq1().modify(|r, w| {
                         let prev: config::Sequence = r.oclen().bits().into();
                         if prev < sequence {
-                            w.oclen().bits(sequence.into())
+                            unsafe { w.oclen().bits(sequence.into()) }
                         } else {
                             w
                         }
@@ -788,7 +791,7 @@ macro_rules! adc {
                         config::Sequence::Fourteen => self.adc_reg.osq1().modify(|_, w| unsafe {w.osn14().bits(channel) }),
                         config::Sequence::Fifteen  => self.adc_reg.osq1().modify(|_, w| unsafe {w.osn15().bits(channel) }),
                         config::Sequence::Sixteen  => self.adc_reg.osq1().modify(|_, w| unsafe {w.osn16().bits(channel) }),
-                    }
+                    };
 
                     fn replace_bits(mut v: u32, offset: u32, width: u32, value: u32) -> u32 {
                         let mask = !(((1 << width) -1) << (offset * width));
@@ -801,8 +804,8 @@ macro_rules! adc {
                     let st = sample_time as u32;
                     let ch = channel as u32;
                     match channel {
-                        0..=9   => self.adc_reg.spt2().modify(|r, w| unsafe { w.bits(replace_bits(r.bits(), ch, 3, st)) }),
-                        10..=18 => self.adc_reg.spt1().modify(|r, w| unsafe { w.bits(replace_bits(r.bits(), ch-10, 3, st)) }),
+                        0..=9   => {self.adc_reg.spt2().modify(|r, w| unsafe { w.bits(replace_bits(r.bits(), ch, 3, st)) });},
+                        10..=18 => {self.adc_reg.spt1().modify(|r, w| unsafe { w.bits(replace_bits(r.bits(), ch-10, 3, st)) });},
                         _ => unimplemented!(),
                     }
                 }

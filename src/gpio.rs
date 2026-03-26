@@ -90,6 +90,15 @@ pub trait GpioExt {
     fn split(self) -> Self::Parts;
 }
 
+pub trait GpioBusExt {
+    /// The bus type of this GPIO
+    type Bus<const SHIFT: u8, const MASK: u16>;
+
+    /// Turn the gpio interface into a bus
+    fn bus_u16(self) -> Self::Bus<0, 0xFFFF>;
+    fn bus_u8(self) -> (Self::Bus<0, 0x00FF>, Self::Bus<8, 0xFF00>);
+}
+
 /// Id, port and mode for any pin
 pub trait PinExt {
     /// Current pin mode
@@ -147,6 +156,7 @@ pub struct Analog;
 /// JTAG/SWD mote (type state)
 pub type Debugger = Alternate<0, PushPull>;
 
+#[allow(unused)]
 pub(crate) mod marker {
     /// Marker trait that show if `ExtiPin` can be implemented
     pub trait Interruptible {}
@@ -229,6 +239,65 @@ af!(
     15: MUX15
 );
 
+/// A bus of gpio pins
+///
+/// SHIFT: which range of pins are we operating on: 0 => 0..16, 8 => 8..16
+/// MASK: bitmask used to select which pins are members of this bus. The mask is unshifted.
+pub struct Bus<const P: char, const SHIFT: u8, const MASK: u16, MODE = DefaultMode> {
+    _mode: PhantomData<MODE>,
+}
+
+impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> Bus<P, SHIFT, MASK, MODE> {
+    const fn new() -> Self {
+        Self { _mode: PhantomData }
+    }
+}
+
+
+impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> Bus<P, SHIFT, MASK, MODE> {
+    /// Set the output of the bus regardless of its mode.
+    /// Primarily used to set the output value of the bus
+    /// before changing its mode to an output to avoid
+    /// a short spike of an incorrect value
+    #[inline(always)]
+    fn _set_state(&mut self, state: u16) {
+        unsafe {
+            (*Gpio::<P>::ptr()).odt().modify(|r, w| {
+                let prev = r.bits() & !(MASK as u32);
+                let new = ((state << SHIFT) & MASK) as u32;
+                w.bits(prev | new)
+            });
+        }
+    }
+
+    #[inline(always)]
+    fn _get_state(&self) -> u16 {
+        unsafe {
+            let unshifted = (*Gpio::<P>::ptr()).odt().read().bits() & !(MASK as u32);
+            (unshifted >> SHIFT) as u16
+        }
+    }
+}
+
+impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> Bus<P, SHIFT, MASK, Output<MODE>> {
+    #[inline(always)]
+    pub fn get_state(&self) -> u16 {
+        self._get_state()
+    }
+
+    #[inline(always)]
+    pub fn set_state(&mut self, state: u16) {
+        self._set_state(state);
+    }
+}
+
+impl<const P: char, const SHIFT: u8, const MASK: u16> Bus<P, SHIFT, MASK, Input> {
+    #[inline(always)]
+    pub fn get_state(&self) -> u16 {
+        self._get_state()
+    }
+}
+
 /// Generic pin type
 ///
 /// - `MODE` is one of the pin modes (see [Modes](crate::gpio#modes) section).
@@ -237,6 +306,7 @@ af!(
 pub struct Pin<const P: char, const N: u8, MODE = DefaultMode> {
     _mode: PhantomData<MODE>,
 }
+
 impl<const P: char, const N: u8, MODE> Pin<P, N, MODE> {
     const fn new() -> Self {
         Self { _mode: PhantomData }
@@ -349,12 +419,12 @@ impl<const P: char, const N: u8, MODE> Pin<P, N, MODE> {
     #[inline(always)]
     fn _set_high(&mut self) {
         // NOTE(unsafe) atomic write to a stateless register
-        unsafe { (*Gpio::<P>::ptr()).scr().write(|w| w.bits(1 << N)) }
+        unsafe { (*Gpio::<P>::ptr()).scr().write(|w| w.bits(1 << N)) };
     }
     #[inline(always)]
     fn _set_low(&mut self) {
         // NOTE(unsafe) atomic write to a stateless register
-        unsafe { (*Gpio::<P>::ptr()).scr().write(|w| w.bits(1 << (16 + N))) }
+        unsafe { (*Gpio::<P>::ptr()).scr().write(|w| w.bits(1 << (16 + N))) };
     }
     #[inline(always)]
     fn _is_set_low(&self) -> bool {
@@ -475,12 +545,12 @@ impl<const P: char, const N: u8, MODE> OutputPin for Pin<P, N, Output<MODE>> {
 impl<const P: char, const N: u8, MODE> StatefulOutputPin for Pin<P, N, Output<MODE>> {
     #[inline(always)]
     fn is_set_high(&mut self) -> Result<bool, Self::Error> {
-        Ok(self.is_set_high()?)
+        Ok(!self._is_low())
     }
 
     #[inline(always)]
     fn is_set_low(&mut self) -> Result<bool, Self::Error> {
-        Ok(self.is_set_low()?)
+        Ok(self._is_low())
     }
 }
 
@@ -494,12 +564,12 @@ where
 {
     #[inline(always)]
     fn is_high(&mut self) -> Result<bool, Self::Error> {
-        Ok(self.is_high()?)
+        Ok(!self._is_low())
     }
 
     #[inline(always)]
     fn is_low(&mut self) -> Result<bool, Self::Error> {
-        Ok(self.is_low()?)
+        Ok(self._is_low())
     }
 }
 
@@ -537,6 +607,28 @@ macro_rules! gpio {
                 }
             }
 
+            impl super::GpioBusExt for $GPIOX {
+                type Bus<const SHIFT: u8, const MASK: u16> = super::Bus<$port_id, SHIFT, MASK>;
+
+                fn bus_u16(self) -> Self::Bus<0, 0xFFFF> {
+                    unsafe {
+                        $GPIOX::enable_unchecked();
+                        $GPIOX::reset_unchecked();
+                    }
+
+                    super::Bus::new()
+                }
+
+                fn bus_u8(self) -> (Self::Bus<0, 0x00FF>, Self::Bus<8, 0xFF00>) {
+                    unsafe {
+                        $GPIOX::enable_unchecked();
+                        $GPIOX::reset_unchecked();
+                    }
+
+                    (super::Bus::new(), super::Bus::new())
+                }
+            }
+
             #[doc="Common type for "]
             #[doc=stringify!($GPIOX)]
             #[doc=" related pins"]
@@ -557,7 +649,6 @@ macro_rules! gpio {
         pub use $gpiox::{ $($PXi,)+ };
     }
 }
-use gpio;
 
 #[cfg(feature = "legacy-gpio")]
 mod f1;

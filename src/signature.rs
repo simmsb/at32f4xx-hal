@@ -20,11 +20,24 @@ macro_rules! define_ptr_type {
     };
 }
 
-#[cfg(any(feature = "at32f421"))]
+#[cfg(any(feature = "at32f421", feature = "at32f415"))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug)]
 #[repr(u32)]
 pub enum Mcu {
+    AT32F415RCT7 = 0x7003_0240,
+    AT32F415CCT7 = 0x7003_0241,
+    AT32F415KCU7_4 = 0x7003_0242,
+    AT32F415RCT7_7 = 0x7003_0243,
+    AT32F415RBT7 = 0x7003_01C4,
+    AT32F415CBT7 = 0x7003_01C5,
+    AT32F415KBU7_4 = 0x7003_01C6,
+    AT32F415RBT7_7 = 0x7003_01C7,
+    AT32F415R8T7 = 0x7003_0108,
+    AT32F415C8T7 = 0x7003_0109,
+    AT32F415K8U7_4 = 0x7003_010A,
+    AT32F415CCU7 = 0x7003_024C,
+    AT32F415CBU7 = 0x7003_01CD,
     AT32F421C8T7 = 0x50020100,
     AT32F421K8T7 = 0x50020101,
     AT32F421K8U7 = 0x50020102,
@@ -51,6 +64,19 @@ pub enum Mcu {
 impl From<u32> for Mcu {
     fn from(pid: u32) -> Self {
         match pid {
+            0x7003_0240 => Mcu::AT32F415RCT7,
+            0x7003_0241 => Mcu::AT32F415CCT7,
+            0x7003_0242 => Mcu::AT32F415KCU7_4,
+            0x7003_0243 => Mcu::AT32F415RCT7_7,
+            0x7003_01C4 => Mcu::AT32F415RBT7,
+            0x7003_01C5 => Mcu::AT32F415CBT7,
+            0x7003_01C6 => Mcu::AT32F415KBU7_4,
+            0x7003_01C7 => Mcu::AT32F415RBT7_7,
+            0x7003_0108 => Mcu::AT32F415R8T7,
+            0x7003_0109 => Mcu::AT32F415C8T7,
+            0x7003_010A => Mcu::AT32F415K8U7_4,
+            0x7003_024C => Mcu::AT32F415CCU7,
+            0x7003_01CD => Mcu::AT32F415CBU7,
             0x50020100 => Mcu::AT32F421C8T7,
             0x50020101 => Mcu::AT32F421K8T7,
             0x50020102 => Mcu::AT32F421K8U7,
@@ -109,10 +135,23 @@ pub struct FlashSize(u16);
 #[cfg(any())]
 define_ptr_type!(FlashSize, 0x1FFF_7A22);
 
-#[cfg(any(feature = "at32f421"))]
+#[cfg(any(feature = "at32f421", feature = "at32f415"))]
 impl FlashSize {
     pub fn from_pid(pid: u32) -> Self {
         let size = match pid {
+            0x7003_0240 => 256,
+            0x7003_0241 => 256,
+            0x7003_0242 => 256,
+            0x7003_0243 => 256,
+            0x7003_01C4 => 128,
+            0x7003_01C5 => 128,
+            0x7003_01C6 => 128,
+            0x7003_01C7 => 128,
+            0x7003_0108 => 64,
+            0x7003_0109 => 64,
+            0x7003_010A => 64,
+            0x7003_024C => 256,
+            0x7003_01CD => 128,
             0x50020100 => 64,
             0x50020101 => 64,
             0x50020102 => 64,

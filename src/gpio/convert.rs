@@ -108,6 +108,80 @@ impl<const P: char, const N: u8, MODE: PinMode> Pin<P, N, MODE> {
     }
 }
 
+impl<const P: char, const SHIFT: u8, const MASK: u16, MODE: PinMode> Bus<P, SHIFT, MASK, MODE> {
+    /// Configures the pin to operate as a input pin
+    pub fn into_input(self) -> Bus<P, SHIFT, MASK, Input> {
+        self.into_mode()
+    }
+
+    /// Configures the pin to operate as a floating input pin
+    pub fn into_floating_input(self) -> Bus<P, SHIFT, MASK, Input> {
+        self.into_mode().internal_resistor(Pull::None)
+    }
+
+    /// Configures the pin to operate as a pulled down input pin
+    pub fn into_pull_down_input(self) -> Bus<P, SHIFT, MASK, Input> {
+        self.into_mode().internal_resistor(Pull::Down)
+    }
+
+    /// Configures the pin to operate as a pulled up input pin
+    pub fn into_pull_up_input(self) -> Bus<P, SHIFT, MASK, Input> {
+        self.into_mode().internal_resistor(Pull::Up)
+    }
+
+    /// Configures the pin to operate as an open drain output pin
+    /// Initial state will be low.
+    pub fn into_open_drain_output(self) -> Bus<P, SHIFT, MASK, Output<OpenDrain>> {
+        self.into_mode()
+    }
+
+    /// Configures the pin to operate as an open-drain output pin.
+    /// `initial_state` specifies whether the pin should be initially high or low.
+    pub fn into_open_drain_output_in_state(
+        mut self,
+        initial_state: u16,
+    ) -> Bus<P, SHIFT, MASK, Output<OpenDrain>> {
+        self._set_state(initial_state);
+        self.into_mode()
+    }
+
+    /// Configures the pin to operate as an push pull output pin
+    /// Initial state will be low.
+    pub fn into_push_pull_output(mut self) -> Bus<P, SHIFT, MASK, Output<PushPull>> {
+        self._set_state(0x00);
+        self.into_mode()
+    }
+
+    /// Configures the pin to operate as an push-pull output pin.
+    /// `initial_state` specifies whether the pin should be initially high or low.
+    pub fn into_push_pull_output_in_state(
+        mut self,
+        initial_state: u16,
+    ) -> Bus<P, SHIFT, MASK, Output<PushPull>> {
+        self._set_state(initial_state);
+        self.into_mode()
+    }
+    /// Puts `self` into mode `M`.
+    ///
+    /// This violates the type state constraints from `MODE`, so callers must
+    /// ensure they use this properly.
+    pub(super) fn mode<M: PinMode>(&mut self) {
+        for n in 0..16u16 {
+            if (MASK & (1 << n)) == 0 {
+                continue;
+            }
+
+            change_mode!((*Gpio::<P>::ptr()), n);
+        }
+    }
+
+    /// Converts pin into specified mode
+    pub fn into_mode<M: PinMode>(mut self) -> Bus<P, SHIFT, MASK, M> {
+        self.mode::<M>();
+        Bus::new()
+    }
+}
+
 #[cfg(feature = "legacy-gpio")]
 macro_rules! change_mode {
     ($block:expr, $N:ident) => {
@@ -116,22 +190,22 @@ macro_rules! change_mode {
             if MODE::IOMC != M::IOMC {
                 if $N < 8 {
                     $block
-                        .cfglr
+                        .cfglr()
                         .modify(|r, w| w.bits(r.bits() & !(0b11 << offset) | (M::IOMC << offset)));
                 } else {
                     $block
-                        .cfghr
+                        .cfghr()
                         .modify(|r, w| w.bits(r.bits() & !(0b11 << offset) | (M::IOMC << offset)));
                 }
             }
 
             if MODE::IOFC != M::IOFC {
                 if $N < 8 {
-                    $block.cfglr.modify(|r, w| {
+                    $block.cfglr().modify(|r, w| {
                         w.bits(r.bits() & !(0b1100 << offset) | (M::IOFC << (offset + 2)))
                     });
                 } else {
-                    $block.cfghr.modify(|r, w| {
+                    $block.cfghr().modify(|r, w| {
                         w.bits(r.bits() & !(0b1100 << offset) | (M::IOFC << (offset + 2)))
                     });
                 }
@@ -140,6 +214,7 @@ macro_rules! change_mode {
     };
 }
 
+#[cfg(feature = "new-gpio")]
 macro_rules! change_mode {
     ($block:expr, $N:ident) => {
         let offset = 2 * $N;

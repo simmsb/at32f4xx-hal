@@ -45,7 +45,7 @@ macro_rules! halUart {
                     StopBits::STOP0P5 and StopBits::STOP1P5 aren't supported when using UART
                     STOPBN_A::STOP1 and STOPBN_A::STOP2 will be used, respectively
                 */
-                self.ctrl2.write(|w| {
+                self.ctrl2().write(|w| {
                     w.stopbn().variant(match bits {
                         StopBits::STOP0P5 => STOPBN_A::Bit1,
                         StopBits::STOP1 => STOPBN_A::Bit1,

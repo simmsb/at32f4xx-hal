@@ -2,7 +2,7 @@ use core::ops::Deref;
 
 use crate::crm::{Clocks, Enable, Reset};
 use crate::gpio;
-use crate::pac::{self, i2c1};
+use crate::pac::i2c1;
 use embedded_hal::i2c::{ErrorKind, ErrorType, NoAcknowledgeSource, Operation};
 
 use fugit::{HertzU32 as Hertz, RateExtU32};
@@ -119,20 +119,20 @@ pub trait Instance:
 }
 
 // Implemented by all I2C instances
-macro_rules! i2c {
-    ($I2C:ty: $I2c:ident) => {
-        pub type $I2c = I2c<$I2C>;
+// macro_rules! i2c {
+//     ($I2C:ty: $I2c:ident) => {
+//         pub type $I2c = I2c<$I2C>;
 
-        impl Instance for $I2C {
-            fn ptr() -> *const i2c1::RegisterBlock {
-                <$I2C>::ptr() as *const _
-            }
-        }
-    };
-}
+//         impl Instance for $I2C {
+//             fn ptr() -> *const i2c1::RegisterBlock {
+//                 <$I2C>::ptr() as *const _
+//             }
+//         }
+//     };
+// }
 
-i2c! { pac::I2C1: I2c1 }
-i2c! { pac::I2C2: I2c2 }
+// i2c! { pac::I2C1: I2c1 }
+// i2c! { pac::I2C2: I2c2 }
 
 pub trait I2cExt: Sized + Instance {
     fn i2c(
@@ -207,7 +207,7 @@ impl<I2C: Instance> I2c<I2C> {
 
         #[cfg(feature = "i2c-v1")]
         // Configure correct rise times
-        self.i2c.tmrise().write(|w| w.risetime().bits(trise as u8));
+        self.i2c.tmrise().write(|w| unsafe {w.risetime().bits(trise as u8)});
 
         match mode {
             // I2C clock control calculation
@@ -217,12 +217,13 @@ impl<I2C: Instance> I2c<I2C> {
                 #[cfg(feature = "i2c-v1")]
                 // Set clock to standard mode with appropriate parameters for selected speed
                 self.i2c.clkctrl().write(|w| {
-                    w.speedmode()
+                    unsafe { w.speedmode()
                         .standard()
                         .dutymode()
                         .duty2_1()
                         .speed()
                         .bits(speed as u16)
+                    }
                 });
             }
             Mode::Fast {
@@ -233,7 +234,7 @@ impl<I2C: Instance> I2c<I2C> {
                     let speed: u32 = (clock / (frequency.raw() * 3)).max(1);
 
                     // Set clock to fast mode with appropriate parameters for selected speed (2:1 duty cycle)
-                    self.i2c.clkctrl().write(|w| {
+                    self.i2c.clkctrl().write(|w| unsafe {
                         w.speedmode()
                             .fast()
                             .dutymode()
@@ -246,7 +247,7 @@ impl<I2C: Instance> I2c<I2C> {
                     let speed = (clock / (frequency.raw() * 25)).max(1);
 
                     // Set clock to fast mode with appropriate parameters for selected speed (16:9 duty cycle)
-                    self.i2c.clkctrl().write(|w| {
+                    self.i2c.clkctrl().write(|w| unsafe {
                         w.speedmode()
                             .fast()
                             .dutymode()
