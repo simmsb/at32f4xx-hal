@@ -19,7 +19,7 @@ use crate::pac;
 #[cfg(feature = "uart4")]
 use crate::serial::uart_impls::RegisterBlockUart;
 
-pub use crate::serial::{config, Event, Instance, NoRx, NoTx, Rx, RxISR, Serial, Tx, TxISR};
+pub use crate::serial::{Event, Instance, NoRx, NoTx, Rx, RxISR, Serial, Tx, TxISR, config};
 pub use config::Config;
 /// Serial error
 pub use embedded_io::ErrorKind as Error;

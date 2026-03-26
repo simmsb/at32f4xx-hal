@@ -68,7 +68,9 @@ impl<const P: char, MODE> PartiallyErasedPin<P, Output<MODE>> {
     #[inline(always)]
     pub fn set_high(&mut self) {
         // NOTE(unsafe) atomic write to a stateless register
-        unsafe { (*Gpio::<P>::ptr()).scr().write(|w| w.bits(1 << self.i)); }
+        unsafe {
+            (*Gpio::<P>::ptr()).scr().write(|w| w.bits(1 << self.i));
+        }
     }
 
     /// Drives the pin low

@@ -570,4 +570,3 @@ pub mod i2c2 {
         type Smba = Smba;
     }
 }
-

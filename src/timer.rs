@@ -1,8 +1,8 @@
 //! Timers
 
 use core::convert::TryFrom;
-use cortex_m::peripheral::syst::SystClkSource;
 use cortex_m::peripheral::SYST;
+use cortex_m::peripheral::syst::SystClkSource;
 
 use crate::bb;
 use crate::pac;

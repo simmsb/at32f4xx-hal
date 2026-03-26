@@ -8,7 +8,7 @@ use defmt_rtt as _;
 use panic_probe as _;
 
 use at32f4xx_hal::{
-    adc::{config::*, Adc},
+    adc::{Adc, config::*},
     crm::Enable,
     pac,
     prelude::*,

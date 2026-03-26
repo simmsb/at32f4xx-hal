@@ -207,7 +207,9 @@ impl<I2C: Instance> I2c<I2C> {
 
         #[cfg(feature = "i2c-v1")]
         // Configure correct rise times
-        self.i2c.tmrise().write(|w| unsafe {w.risetime().bits(trise as u8)});
+        self.i2c
+            .tmrise()
+            .write(|w| unsafe { w.risetime().bits(trise as u8) });
 
         match mode {
             // I2C clock control calculation
@@ -216,14 +218,13 @@ impl<I2C: Instance> I2c<I2C> {
 
                 #[cfg(feature = "i2c-v1")]
                 // Set clock to standard mode with appropriate parameters for selected speed
-                self.i2c.clkctrl().write(|w| {
-                    unsafe { w.speedmode()
+                self.i2c.clkctrl().write(|w| unsafe {
+                    w.speedmode()
                         .standard()
                         .dutymode()
                         .duty2_1()
                         .speed()
                         .bits(speed as u16)
-                    }
                 });
             }
             Mode::Fast {

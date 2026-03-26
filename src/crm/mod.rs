@@ -40,7 +40,7 @@
 //! frequencies may substantially deviate from the requested frequencies.
 
 use crate::pac::crm::cfg::{AHBDIV_A, SCLKSEL_A};
-use crate::pac::{self, crm, CRM};
+use crate::pac::{self, CRM, crm};
 
 use fugit::{HertzU32 as Hertz, RateExtU32};
 

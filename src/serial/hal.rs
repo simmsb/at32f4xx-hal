@@ -136,8 +136,8 @@ mod blocking {
         fn write(&mut self, bytes: &[u8]) -> Result<usize, Self::Error> {
             for &b in bytes {
                 match block!(self.usart.write_u8(b)) {
-                    Ok(_) => {},
-                    Err(_) => { return Err(Self::Error::Other) },
+                    Ok(_) => {}
+                    Err(_) => return Err(Self::Error::Other),
                 };
             }
             Ok(bytes.len())

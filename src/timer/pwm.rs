@@ -37,10 +37,10 @@
 //! and change their polarity with `set_polarity` and `set_complementary_polarity`.
 
 use super::{
-    compute_arr_presc, Advanced, CPin, Channel, FTimer, IdleState, Instance, Ocm, Polarity, Timer,
-    WithPwm,
+    Advanced, CPin, Channel, FTimer, IdleState, Instance, Ocm, Polarity, Timer, WithPwm,
+    compute_arr_presc,
 };
-pub use super::{Ch, C1, C2, C3, C4};
+pub use super::{C1, C2, C3, C4, Ch};
 use crate::crm::Clocks;
 use crate::gpio::PushPull;
 use core::marker::PhantomData;

@@ -253,7 +253,6 @@ impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> Bus<P, SHIFT, MASK, 
     }
 }
 
-
 impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> Bus<P, SHIFT, MASK, MODE> {
     /// Set the output of the bus regardless of its mode.
     /// Primarily used to set the output value of the bus

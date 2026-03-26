@@ -3,14 +3,14 @@ use core::{fmt, ops::Deref};
 use nb::block;
 
 use super::{
-    config, Error, Event, Listen, Rx, RxISR, RxListen, Serial, SerialExt, Tx, TxISR, TxListen,
+    Error, Event, Listen, Rx, RxISR, RxListen, Serial, SerialExt, Tx, TxISR, TxListen, config,
 };
 // use crate::dma::{
 //     traits::{DMASet, PeriAddress},
 //     MemoryToPeripheral, PeripheralToMemory,
 // };
 use crate::crm::{self, Clocks};
-use crate::gpio::{alt::SerialAsync as CommonPins, NoPin, PushPull};
+use crate::gpio::{NoPin, PushPull, alt::SerialAsync as CommonPins};
 
 #[cfg(feature = "uart4")]
 pub(crate) use crate::pac::uart4::RegisterBlock as RegisterBlockUart;
@@ -168,11 +168,17 @@ macro_rules! uartCommon {
                 });
 
                 match config.dma {
-                    DmaConfig::Tx => {register_block.ctrl3().write(|w| w.dmaten().enable());},
-                    DmaConfig::Rx => {register_block.ctrl3().write(|w| w.dmaren().enable());},
-                    DmaConfig::TxRx => {register_block
-                        .ctrl3()
-                        .write(|w| w.dmaren().enable().dmaten().enable());},
+                    DmaConfig::Tx => {
+                        register_block.ctrl3().write(|w| w.dmaten().enable());
+                    }
+                    DmaConfig::Rx => {
+                        register_block.ctrl3().write(|w| w.dmaren().enable());
+                    }
+                    DmaConfig::TxRx => {
+                        register_block
+                            .ctrl3()
+                            .write(|w| w.dmaren().enable().dmaten().enable());
+                    }
                     DmaConfig::None => {}
                 }
 
