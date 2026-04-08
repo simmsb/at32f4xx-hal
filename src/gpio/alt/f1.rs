@@ -1,5 +1,5 @@
 use super::*;
-use crate::gpio::{self, NoPin, PushPull};
+use crate::gpio::{self, NoPin, PushPull, Input};
 
 #[cfg(feature = "tmr1")]
 pub mod tmr1 {
@@ -489,5 +489,25 @@ pub mod uart5 {
     impl SerialAsync for UART {
         type Rx<Otype> = Rx<Otype>;
         type Tx<Otype> = Tx<Otype>;
+    }
+}
+
+pub mod can1 {
+    use super::*;
+    pin! {
+        <Rx, Input> for [
+            PA11<0>,
+            PB8<1>,
+        ],
+        <Tx, PushPull> for [
+            PA12<0>,
+            PB9<1>,
+        ],
+    }
+
+    use crate::pac::CAN1 as CAN1;
+    impl Can for CAN1 {
+        type Rx = Rx;
+        type Tx = Tx;
     }
 }

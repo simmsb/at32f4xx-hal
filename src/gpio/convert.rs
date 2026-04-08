@@ -103,6 +103,7 @@ impl<const P: char, const N: u8, MODE: PinMode> Pin<P, N, MODE> {
     #[inline(always)]
     /// Converts pin into specified mode
     pub fn into_mode<M: PinMode>(mut self) -> Pin<P, N, M> {
+        defmt::debug!("Setting pin mode {=char}{=u8} to {}", P, N, M::NAME);
         self.mode::<M>();
         Pin::new()
     }
@@ -399,6 +400,18 @@ impl<const P: char, const N: u8, CURRENT: PinMode, ORIG: PinMode> Drop
     }
 }
 
+#[derive(defmt::Format)]
+enum ModeName {
+    Unknown,
+    OutputPushPull,
+    OutputOpenDrain,
+    Analog,
+    Input,
+    AlternativePushPull,
+    AlternativeOpenDrain,
+    AlternativeInput,
+}
+
 /// Marker trait for valid pin modes (type state).
 ///
 /// It can not be implemented by outside types.
@@ -406,7 +419,7 @@ impl<const P: char, const N: u8, CURRENT: PinMode, ORIG: PinMode> Drop
 pub trait PinMode: crate::Sealed {
     // These constants are used to implement the pin configuration code.
     // They are not part of public API.
-
+    const NAME: ModeName = ModeName::Unknown;
     #[doc(hidden)]
     const IOMC: u32 = u32::MAX;
     #[doc(hidden)]
@@ -430,6 +443,7 @@ impl crate::Sealed for Input {}
 
 #[cfg(feature = "legacy-gpio")]
 impl PinMode for Input {
+    const NAME: ModeName = ModeName::Input;
     const IOMC: u32 = 0b00;
     const IOFC: u32 = 0b01;
 }
@@ -442,6 +456,7 @@ impl PinMode for Input {
 impl crate::Sealed for Analog {}
 #[cfg(feature = "legacy-gpio")]
 impl PinMode for Analog {
+    const NAME: ModeName = ModeName::Analog;
     const IOMC: u32 = 0b00;
     const IOFC: u32 = 0b00;
 }
@@ -454,6 +469,7 @@ impl PinMode for Analog {
 impl<Otype> crate::Sealed for Output<Otype> {}
 #[cfg(feature = "legacy-gpio")]
 impl PinMode for Output<OpenDrain> {
+    const NAME: ModeName = ModeName::OutputOpenDrain;
     const IOMC: u32 = 0b10;
     const IOFC: u32 = 0b01;
 }
@@ -466,6 +482,7 @@ impl PinMode for Output<OpenDrain> {
 
 #[cfg(feature = "legacy-gpio")]
 impl PinMode for Output<PushPull> {
+    const NAME: ModeName = ModeName::OutputPushPull;
     const IOMC: u32 = 0b10;
     const IOFC: u32 = 0b00;
 }
@@ -479,6 +496,7 @@ impl PinMode for Output<PushPull> {
 impl<const A: u8, Otype> crate::Sealed for Alternate<A, Otype> {}
 #[cfg(feature = "legacy-gpio")]
 impl<const A: u8> PinMode for Alternate<A, OpenDrain> {
+    const NAME: ModeName = ModeName::OutputOpenDrain;
     const IOMC: u32 = 0b10;
     const IOFC: u32 = 0b11;
 }
@@ -492,6 +510,7 @@ impl<const A: u8> PinMode for Alternate<A, OpenDrain> {
 
 #[cfg(feature = "legacy-gpio")]
 impl<const A: u8> PinMode for Alternate<A, PushPull> {
+    const NAME: ModeName = ModeName::AlternativePushPull;
     const IOMC: u32 = 0b10;
     const IOFC: u32 = 0b10;
 }
@@ -505,6 +524,7 @@ impl<const A: u8> PinMode for Alternate<A, PushPull> {
 
 #[cfg(feature = "legacy-gpio")]
 impl<const A: u8> PinMode for Alternate<A, Input> {
+    const NAME: ModeName = ModeName::AlternativeInput;
     const IOMC: u32 = 0b00;
     const IOFC: u32 = 0b01;
 }

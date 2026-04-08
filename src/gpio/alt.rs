@@ -328,6 +328,11 @@ pub trait DfsdmAdvanced: DfsdmGeneral {
     type Datin7;
 }
 
+pub trait Can {
+    type Rx;
+    type Tx;
+}
+
 // Serial pins
 pub trait SerialAsync {
     /// Receive

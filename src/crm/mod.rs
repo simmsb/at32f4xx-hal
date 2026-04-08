@@ -311,6 +311,7 @@ pub const PCLK2_MAX: u32 = SYSCLK_MAX / 2;
 /// Maximum APB1 peripheral clock frequency
 pub const PCLK1_MAX: u32 = SYSCLK_MAX / 2;
 
+#[derive(defmt::Format)]
 pub struct CFGR {
     hext: Option<u32>,
     hext_bypass: bool,
@@ -550,6 +551,8 @@ struct PllSetup {
 /// Frozen clock frequencies
 ///
 /// The existence of this value indicates that the clock configuration can no longer be changed
+
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Clocks {
     sclk: Hertz,

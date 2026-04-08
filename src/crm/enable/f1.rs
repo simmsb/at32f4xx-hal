@@ -1,6 +1,10 @@
 use super::*;
 
 bus! {
+    CAN1 => (APB1, 25),
+}
+
+bus! {
     DMA1 => (AHB, 0),
     CRC => (AHB, 6),
 }
