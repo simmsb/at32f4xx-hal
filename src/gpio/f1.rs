@@ -189,7 +189,7 @@ where
 }
 
 #[cfg(feature = "at32f415")]
-gpio!(GPIOA, gpioa, PA, 'A', PAn, [
+gpio!(GPIOA, gpioa, PA, 'A', PAn, 0b0000, [
     PA0: (pa0, 0, []),
     PA1: (pa1, 1, []),
     PA2: (pa2, 2, []),
@@ -209,7 +209,7 @@ gpio!(GPIOA, gpioa, PA, 'A', PAn, [
 ]);
 
 #[cfg(feature = "at32f415")]
-gpio!(GPIOB, gpiob, PB, 'B', PBn, [
+gpio!(GPIOB, gpiob, PB, 'B', PBn, 0b0001, [
     PB0: (pb0, 0, []),
     PB1: (pb1, 1, []),
     PB2: (pb2, 2, []),
@@ -229,7 +229,7 @@ gpio!(GPIOB, gpiob, PB, 'B', PBn, [
 ]);
 
 #[cfg(feature = "at32f415")]
-gpio!(GPIOC, gpioc, PC, 'C', PCn, [
+gpio!(GPIOC, gpioc, PC, 'C', PCn, 0b0010, [
     PC0: (pc0, 0, []),
     PC1: (pc1, 1, []),
     PC2: (pc2, 2, []),
@@ -249,7 +249,7 @@ gpio!(GPIOC, gpioc, PC, 'C', PCn, [
 ]);
 
 #[cfg(feature = "at32f415")]
-gpio!(GPIOD, gpiod, PD, 'D', PDn, [
+gpio!(GPIOD, gpiod, PD, 'D', PDn, 0b0011, [
     PD0: (pd0, 0, []),
     PD1: (pd1, 1, []),
     PD2: (pd2, 2, []),
@@ -257,7 +257,7 @@ gpio!(GPIOD, gpiod, PD, 'D', PDn, [
 ]);
 
 #[cfg(feature = "at32f415")]
-gpio!(GPIOF, gpiof, PF, 'F', PFn, [
+gpio!(GPIOF, gpiof, PF, 'F', PFn, 0b0100, [
     PF4: (pf4, 4, []),
     PF5: (pf5, 5, []),
     PF6: (pf6, 6, []),

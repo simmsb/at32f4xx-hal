@@ -170,8 +170,13 @@ pub(crate) mod marker {
     pub trait NotAlt {}
     /// Marker trait for pins with alternate function `A` mapping
     pub trait IntoAf<const A: u8> {}
+    /// Marker trait for exti ins
+    pub trait ExtiPin<const CHANNEL: u8> {
+        const BITS: u8;
+    }
 }
 
+pub use marker::*;
 impl<MODE> marker::Interruptible for Output<MODE> {}
 impl marker::Interruptible for Input {}
 impl marker::Readable for Input {}
@@ -577,7 +582,7 @@ where
 }
 
 macro_rules! gpio {
-    ($GPIOX:ident, $gpiox:ident, $PEPin:ident, $port_id:expr, $PXn:ident, [
+    ($GPIOX:ident, $gpiox:ident, $PEPin:ident, $port_id:expr, $PXn:ident, $exti_bit:literal, [
         $($PXi:ident: ($pxi:ident, $i:expr, [$($A:literal),*] $(, $MODE:ty)?),)+
     ]) => {
         /// GPIO
@@ -652,6 +657,10 @@ macro_rules! gpio {
                 $(
                     impl<MODE> super::marker::IntoAf<$A> for $PXi<MODE> { }
                 )*
+
+                impl super::marker::ExtiPin<$i> for $PXi<super::Input> {
+                    const BITS: u8 = $exti_bit;
+                }
             )+
 
         }

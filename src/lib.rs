@@ -114,6 +114,7 @@ pub mod uart;
 
 #[cfg(feature = "iomux")]
 pub mod iomux;
+pub mod exti;
 
 mod sealed {
     pub trait Sealed {}
