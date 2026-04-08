@@ -25,7 +25,7 @@ defmt-rtt = "1.1"
 panic-probe = { version = "1.0", features = ["print-defmt"] }
 
 [features]
-default = ["at32f415", "mipidsi"]
+default = ["at32f415", "defmt"]
 at32a403a = ["at32f4xx-pac/at32a403a", "a403a-peripheral"]
 at32f402 = ["at32f4xx-pac/at32f402", "f402-peripheral"]
 at32f403 = ["at32f4xx-pac/at32f403", "f403-peripheral"]

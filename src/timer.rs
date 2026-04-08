@@ -438,7 +438,7 @@ macro_rules! tmr {
                 fn enable_channel(c: u8, b: bool) {
                     let tmr = unsafe { &*<$TMR>::ptr() };
                     if c < Self::CH_NUMBER {
-                        unsafe { bb::write(&tmr.cctrl(), c*4, b); }
+                        unsafe { bb::write(tmr.cctrl(), c*4, b); }
                     }
                 }
 
@@ -446,7 +446,7 @@ macro_rules! tmr {
                 fn set_channel_polarity(c: u8, p: Polarity) {
                     let tmr = unsafe { &*<$TMR>::ptr() };
                     if c < Self::CH_NUMBER {
-                        unsafe { bb::write(&tmr.cctrl(), c*4 + 1, p == Polarity::ActiveLow); }
+                        unsafe { bb::write(tmr.cctrl(), c*4 + 1, p == Polarity::ActiveLow); }
                     }
                 }
 
@@ -454,7 +454,7 @@ macro_rules! tmr {
                 fn set_nchannel_polarity(c: u8, p: Polarity) {
                     let tmr = unsafe { &*<$TMR>::ptr() };
                     if c < Self::COMP_CH_NUMBER {
-                        unsafe { bb::write(&tmr.cctrl(), c*4 + 3, p == Polarity::ActiveLow); }
+                        unsafe { bb::write(tmr.cctrl(), c*4 + 3, p == Polarity::ActiveLow); }
                     }
                 }
             }
@@ -465,7 +465,7 @@ macro_rules! tmr {
                         let $aoe = ();
                         let tmr = unsafe { &*<$TMR>::ptr() };
                         if c < Self::COMP_CH_NUMBER {
-                            unsafe { bb::write(&tmr.cctrl(), c*4 + 2, b); }
+                            unsafe { bb::write(tmr.cctrl(), c*4 + 2, b); }
                         }
                     }
                     fn set_dtc_value(value: u8) {
@@ -480,11 +480,11 @@ macro_rules! tmr {
                         let tmr = unsafe { &*<$TMR>::ptr() };
                         if !comp {
                             if c < Self::CH_NUMBER {
-                                unsafe { bb::write(&tmr.ctrl2(), c*2 + 8, s == IdleState::Set); }
+                                unsafe { bb::write(tmr.ctrl2(), c*2 + 8, s == IdleState::Set); }
                             }
                         } else {
                             if c < Self::COMP_CH_NUMBER {
-                                unsafe { bb::write(&tmr.ctrl2(), c*2 + 9, s == IdleState::Set); }
+                                unsafe { bb::write(tmr.ctrl2(), c*2 + 9, s == IdleState::Set); }
                             }
                         }
                     }
@@ -680,6 +680,10 @@ impl<TMR: Instance, const FREQ: u32> FTimer<TMR, FREQ> {
     /// Releases the TMR peripheral
     pub fn release(self) -> TMR {
         self.tmr
+    }
+
+    pub unsafe fn new_assume_configured(tmr: TMR) -> Self {
+        Self { tmr }
     }
 
     /// Starts listening for an `event`

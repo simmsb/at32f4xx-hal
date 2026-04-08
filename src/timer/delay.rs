@@ -59,14 +59,14 @@ impl SysDelay {
 
     pub fn delay_ns(&mut self, ns: NanosDurationU32) {
         // The SysTick Reload Value register supports values between 1 and 0x00FFFFFF.
-        const MAX_RVR: u32 = 0x00FF_FFFF;
+        const MAX_RVR: u64 = 0x00FF_FFFF;
 
-        let mut total_rvr = ns.ticks() * (self.clk.raw() / 1_000_000);
+        let mut total_rvr = (ns.ticks() as u64 * (self.clk.raw() / 1_000_000) as u64) / 1_000;
 
         while total_rvr != 0 {
             let current_rvr = total_rvr.min(MAX_RVR);
 
-            self.tmr.set_reload(current_rvr);
+            self.tmr.set_reload(current_rvr as u32);
             self.tmr.clear_current();
             self.tmr.enable_counter();
 

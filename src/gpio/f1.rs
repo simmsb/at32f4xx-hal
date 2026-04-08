@@ -17,7 +17,7 @@ where
             },
             8..=15 => unsafe {
                 (*Gpio::<P>::ptr()).cfghr().modify(|r, w| {
-                    w.bits((r.bits() & !(0b11 << offset)) | ((speed as u32) << offset))
+                    w.bits((r.bits() & !(0b11 << (offset - 32))) | ((speed as u32) << (offset - 32)))
                 });
             },
             _ => unreachable!(),
@@ -54,7 +54,7 @@ where
                 8..=15 => unsafe {
                     (*Gpio::<P>::ptr())
                         .cfghr()
-                        .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3))));
+                        .modify(|r, w| w.bits(r.bits() & !(0b1 << ((offset - 32) + 3))));
                 },
                 _ => unreachable!(),
             }
@@ -67,7 +67,7 @@ where
                 },
                 8..=15 => unsafe {
                     (*Gpio::<P>::ptr()).cfghr().modify(|r, w| {
-                        w.bits(r.bits() & !(0b11 << (offset + 2)) | (0b10 << (offset + 2)))
+                        w.bits(r.bits() & !(0b11 << (offset + 2 - 32)) | (0b10 << (offset + 2 - 32)))
                     });
                 },
                 _ => unreachable!(),
@@ -109,7 +109,6 @@ impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> PinSpeed for Bus<P, 
 where
     MODE: marker::OutputSpeed,
 {
-    #[inline(always)]
     fn set_speed(&mut self, speed: Speed) {
         for n in 0..16u16 {
             if (MASK & (1 << n)) == 0 {
@@ -125,7 +124,7 @@ where
                 },
                 8..=15 => unsafe {
                     (*Gpio::<P>::ptr()).cfghr().modify(|r, w| {
-                        w.bits((r.bits() & !(0b11 << offset)) | ((speed as u32) << offset))
+                        w.bits((r.bits() & !(0b11 << (offset - 32))) | ((speed as u32) << (offset - 32)))
                     });
                 },
                 _ => unreachable!(),
@@ -138,7 +137,6 @@ impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> PinPull for Bus<P, S
 where
     MODE: marker::Active,
 {
-    #[inline(always)]
     fn set_internal_resistor(&mut self, resistor: Pull) {
         for n in 0..16u16 {
             if (MASK & (1 << n)) == 0 {
@@ -162,7 +160,7 @@ where
                     8..=15 => unsafe {
                         (*Gpio::<P>::ptr())
                             .cfghr()
-                            .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3))));
+                            .modify(|r, w| w.bits(r.bits() & !(0b1 << (offset + 3 - 32))));
                     },
                     _ => unreachable!(),
                 }
@@ -175,7 +173,7 @@ where
                     },
                     8..=15 => unsafe {
                         (*Gpio::<P>::ptr()).cfghr().modify(|r, w| {
-                            w.bits(r.bits() & !(0b11 << (offset + 2)) | (0b10 << (offset + 2)))
+                            w.bits(r.bits() & !(0b11 << (offset + 2 - 32)) | (0b10 << (offset + 2 - 32)))
                         });
                     },
                     _ => unreachable!(),
@@ -207,7 +205,7 @@ gpio!(GPIOA, gpioa, PA, 'A', PAn, [
     PA12: (pa12, 12, []),
     PA13: (pa13, 13, []), // JTMS-SWDIO, PullUp VeryHigh speed
     PA14: (pa14, 14, []), // JTCK-SWCLK, PullDown
-    PA15: (pa15, 15, []), // JTDI, PullUp
+    PA15: (pa15, 15, [1]), // JTDI, PullUp
 ]);
 
 #[cfg(feature = "at32f415")]

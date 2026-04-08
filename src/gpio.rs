@@ -262,7 +262,11 @@ impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> Bus<P, SHIFT, MASK, 
     fn _set_state(&mut self, state: u16) {
         unsafe {
             (*Gpio::<P>::ptr()).odt().modify(|r, w| {
-                let prev = r.bits() & !(MASK as u32);
+                let prev = if const { MASK & 0xFFFF == 0xFFFF } {
+                    r.bits() & !(MASK as u32)
+                } else {
+                    0
+                };
                 let new = ((state << SHIFT) & MASK) as u32;
                 w.bits(prev | new)
             });
@@ -587,6 +591,13 @@ macro_rules! gpio {
                     /// Pin
                     pub $pxi: $PXi $(<$MODE>)?,
                 )+
+            }
+
+            impl Parts {
+                pub unsafe fn replicate(self) -> (Self, Self) {
+                    let r = unsafe { core::mem::transmute_copy(&self) };
+                    (self, r)
+                }
             }
 
             impl super::GpioExt for $GPIOX {
