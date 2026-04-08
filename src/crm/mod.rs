@@ -311,6 +311,8 @@ pub const PCLK2_MAX: u32 = SYSCLK_MAX / 2;
 /// Maximum APB1 peripheral clock frequency
 pub const PCLK1_MAX: u32 = SYSCLK_MAX / 2;
 
+pub const HSI: u32 = 8_000_000;
+
 pub struct CFGR {
     hext: Option<u32>,
     hext_bypass: bool,
@@ -319,6 +321,44 @@ pub struct CFGR {
     pclk2: Option<u32>,
     sclk: Option<u32>,
     pll48clk: bool,
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HPre {
+    /// SYSCLK not divided
+    Div1 = 7,
+    /// SYSCLK divided by 2
+    Div2 = 8,
+    /// SYSCLK divided by 4
+    Div4 = 9,
+    /// SYSCLK divided by 8
+    Div8 = 10,
+    /// SYSCLK divided by 16
+    Div16 = 11,
+    /// SYSCLK divided by 64
+    Div64 = 12,
+    /// SYSCLK divided by 128
+    Div128 = 13,
+    /// SYSCLK divided by 256
+    Div256 = 14,
+    /// SYSCLK divided by 512
+    Div512 = 15,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum PPre {
+    /// HCLK not divided
+    Div1 = 3,
+    /// HCLK divided by 2
+    Div2 = 4,
+    /// HCLK divided by 4
+    Div4 = 5,
+    /// HCLK divided by 8
+    Div8 = 6,
+    /// HCLK divided by 16
+    Div16 = 7,
 }
 
 impl CFGR {
@@ -404,138 +444,156 @@ impl CFGR {
     fn freeze_internal(self, unchecked: bool) -> Clocks {
         let crm = unsafe { &*CRM::ptr() };
 
-        let sclk = self.sclk.unwrap_or(self.hext.unwrap_or(HICK));
-        let sclk_on_pll = if self.hext.is_some() {
-            sclk != self.hext.unwrap()
+        defmt::debug!("Starting clock freeze with: {}", self);
+
+        let hse = self.hext;
+        let hse_bypass = self.hext_bypass;
+        let pllsrcclk = if let Some(hse) = hse { hse } else { HSI / 2 };
+
+        let pllmul = if let Some(sysclk) = self.sclk {
+            sysclk / pllsrcclk
         } else {
-            sclk != HICK && sclk != HICK / 6
+            1
         };
-        let pllsrcclk = self.hext.unwrap_or(HICK / 12);
 
-        let hick_div = false;
-
-        let plls = self.pll_setup(pllsrcclk, sclk_on_pll.then_some(sclk));
-        let sclk = if sclk_on_pll {
-            plls.pllsysclk.unwrap()
+        let (pllmul_bits, sysclk) = if pllmul == 1 {
+            (None, if let Some(hse) = hse { hse } else { HSI })
         } else {
-            sclk
+            let pllmul = match pllmul {
+                4..=9 => pllmul,
+                0..=3 => 4,
+                _ => 9,
+            };
+
+            (Some(pllmul as u8 - 2), pllsrcclk * pllmul)
         };
 
-        let hclk = self.hclk.unwrap_or(sclk);
-        let (ahbdiv_bits, ahbdiv) = match (sclk + hclk - 1) / hclk {
-            1 => (AHBDIV_A::Sclk, 1),
-            2 => (AHBDIV_A::Div2, 2),
-            3..=5 => (AHBDIV_A::Div4, 4),
-            6..=11 => (AHBDIV_A::Div8, 8),
-            12..=39 => (AHBDIV_A::Div16, 16),
-            40..=95 => (AHBDIV_A::Div64, 64),
-            96..=191 => (AHBDIV_A::Div128, 128),
-            192..=383 => (AHBDIV_A::Div256, 256),
-            384..=767 => (AHBDIV_A::Div512, 512),
-            _ => unreachable!(),
+        let hpre_bits = if let Some(hclk) = self.hclk {
+            match sysclk / hclk {
+                0..=1 => HPre::Div1,
+                2 => HPre::Div2,
+                3..=5 => HPre::Div4,
+                6..=11 => HPre::Div8,
+                12..=39 => HPre::Div16,
+                40..=95 => HPre::Div64,
+                96..=191 => HPre::Div128,
+                192..=383 => HPre::Div256,
+                _ => HPre::Div512,
+            }
+        } else {
+            HPre::Div1
         };
 
-        // Calculate real AHB clock
-        let hclk = sclk / ahbdiv;
-
-        let pclk1 = self
-            .pclk1
-            .unwrap_or_else(|| core::cmp::min(PCLK1_MAX, hclk));
-        let (_ppre1_bits, ppre1) = match (hclk + pclk1 - 1) / pclk1 {
-            1 => (0b000, 1u8),
-            2 => (0b100, 2),
-            3..=5 => (0b101, 4),
-            6..=11 => (0b110, 8),
-            12..=24 => (0b111, 16),
-            _ => unreachable!(),
+        let hclk = if hpre_bits as u8 >= 0b1100 {
+            sysclk / (1 << (hpre_bits as u8 - 0b0110))
+        } else {
+            sysclk / (1 << (hpre_bits as u8 - 0b0111))
         };
 
-        // Calculate real APB1 clock
-        let pclk1 = hclk / u32::from(ppre1);
-
-        assert!(unchecked || pclk1 <= PCLK1_MAX);
-
-        let pclk2 = self
-            .pclk2
-            .unwrap_or_else(|| core::cmp::min(PCLK2_MAX, hclk));
-        let (_ppre2_bits, ppre2) = match (hclk + pclk2 - 1) / pclk2 {
-            1 => (0b000, 1u8),
-            2 => (0b100, 2),
-            3..=5 => (0b101, 4),
-            6..=11 => (0b110, 8),
-            12..=24 => (0b111, 16),
-            _ => unreachable!(),
+        let pclk1 = if let Some(pclk1) = self.pclk1 {
+            pclk1
+        } else if hclk < 36_000_000 {
+            hclk
+        } else {
+            36_000_000
+        };
+        let ppre1_bits = match (hclk + pclk1 - 1) / pclk1 {
+            0 | 1 => PPre::Div1,
+            2 => PPre::Div2,
+            3..=5 => PPre::Div4,
+            6..=11 => PPre::Div8,
+            _ => PPre::Div16,
         };
 
-        // Calculate real APB2 clock
-        let pclk2 = hclk / u32::from(ppre1);
+        let ppre2_bits = if let Some(pclk2) = self.pclk2 {
+            match hclk / pclk2 {
+                0..=1 => PPre::Div1,
+                2 => PPre::Div2,
+                3..=5 => PPre::Div4,
+                6..=11 => PPre::Div8,
+                _ => PPre::Div16,
+            }
+        } else {
+            PPre::Div1
+        };
 
-        assert!(unchecked || pclk2 <= PCLK2_MAX);
+        // let ppre2 = 1 << (ppre2_bits as u8 - 0b011);
+        // let pclk2 = hclk / (ppre2 as u32);
 
-        Self::flash_setup(sclk);
+        let sysclk = if let Some(pllmul_bits) = pllmul_bits {
+            let pllsrcclk = if let Some(hse) = hse { hse } else { HSI / 2 };
+            pllsrcclk * (pllmul_bits as u32 + 2)
+        } else if let Some(hse) = hse {
+            hse
+        } else {
+            HSI
+        };
 
-        if !hick_div {
-            // disable HICK /6 division
-            crm.misc1().modify(|_, w| w.hickdiv().bit(!hick_div));
-            crm.misc2().modify(|_, w| w.hick_to_sclk().bit(!hick_div));
-        }
+        let hclk = if hpre_bits as u8 >= 0b1100 {
+            sysclk / (1 << (hpre_bits as u8 - 0b0110))
+        } else {
+            sysclk / (1 << (hpre_bits as u8 - 0b0111))
+        };
 
-        if self.hext.is_some() {
-            // enable HEXT and wait for it to be ready
+        let ppre1 = 1 << (ppre1_bits as u8 - 0b011);
+        let pclk1 = hclk / (ppre1 as u32);
+
+        let ppre2 = 1 << (ppre2_bits as u8 - 0b011);
+        let pclk2 = hclk / (ppre2 as u32);
+
+        Self::flash_setup(sysclk);
+
+        if hse.is_some() {
             crm.ctrl().modify(|_, w| {
-                if self.hext_bypass {
-                    w.hextbyps().set_bit();
+                if hse_bypass {
+                    w.hextbyps().enable();
                 }
-                w.hexten().set_bit()
+                w.hexten().enable();
+                w
             });
+
             while crm.ctrl().read().hextstbl().bit_is_clear() {}
         }
 
-        if plls.use_pll {
-            // Enable PLL
-            crm.ctrl().modify(|_, w| w.pllen().set_bit());
+        if let Some(pllmul_bits) = pllmul_bits {
+            crm.cfg().modify(|_, w| unsafe {
+                w.pllmult3_0().bits(pllmul_bits);
+                w.pllrcs().bit(hse.is_some());
+                w
+            });
 
-            // Wait for PLL to stabilise
+            crm.ctrl().modify(|_, w| w.pllen().enable());
+
             while crm.ctrl().read().pllstbl().bit_is_clear() {}
         }
 
-        crm.cfg().modify(|_, w| w.ahbdiv().variant(ahbdiv_bits));
-
-        // Wait for the new prescalers to kick in
-        // "The clocks are divided with the new prescaler factor from 1 to 16 AHB cycles after write"
-        cortex_m::asm::delay(16);
-
-        crm.cfg().modify(|_, w| {
-            w.sclksel().variant(if sclk_on_pll {
-                SCLKSEL_A::Pll
-            } else if self.hext.is_some() {
-                SCLKSEL_A::Hext
+        crm.cfg().modify(|_, w| unsafe {
+            // adcpre?
+            w.apb1div().bits(ppre1_bits as u8);
+            w.apb2div().bits(ppre2_bits as u8);
+            w.ahbdiv().bits(hpre_bits as u8);
+            w.sclksel().bits(if pllmul_bits.is_some() {
+                0b10
+            } else if hse.is_some() {
+                0b1
             } else {
-                SCLKSEL_A::Hick
-            })
+                0b0
+            });
+            w
         });
 
-        let pclk_mul = if ppre1 == 1 { 1 } else { 2 };
-        let tmr1clk = Hertz::from_raw(pclk1 * pclk_mul);
+        let tmr1clk = Hertz::from_raw(pclk1 * if ppre1 == 1 { 1 } else { 2 });
+        let tmr2clk = Hertz::from_raw(pclk2 * if ppre2 == 1 { 1 } else { 2 });
 
-        let pclk_mul = if ppre2 == 1 { 1 } else { 2 };
-        let tmr2clk = Hertz::from_raw(pclk2 * pclk_mul);
-
-        let clocks = Clocks {
-            sclk: sclk.Hz(),
+        Clocks {
+            sclk: sysclk.Hz(),
             hclk: hclk.Hz(),
             pclk1: pclk1.Hz(),
             pclk2: pclk2.Hz(),
             tmr1clk,
             tmr2clk,
-            usb48m: Some(48_000_000.Hz()),
-        };
-
-        if self.pll48clk {
-            assert!(clocks.is_usb48m_valid());
+            usb48m: None,
         }
-
-        clocks
     }
 }
 
