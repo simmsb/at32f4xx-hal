@@ -2,7 +2,7 @@
 
 use core::marker::PhantomData;
 
-use super::{ExtendedId, Fifo, Id, StandardId};
+use super::{ExtendedId, Fifo, Id, REGS, StandardId};
 
 const F32_RTR: u32 = 0b010; // set the RTR bit to match remote frames
 const F32_IDE: u32 = 0b100; // set the IDE bit to match extended identifiers
@@ -216,18 +216,17 @@ pub struct MasterFilters<'a> {
     /// On chips with splittable filter banks, this value can be dynamic.
     bank_count: u8,
     _phantom: PhantomData<&'a ()>,
-    info: &'static crate::can::Info,
 }
 
 // NOTE: This type mutably borrows the CAN instance and has unique access to the registers while it
 // exists.
 impl MasterFilters<'_> {
-    pub(crate) unsafe fn new(info: &'static crate::can::Info) -> Self {
+    pub(crate) unsafe fn new() -> Self {
         // Enable initialization mode.
-        info.regs.0.fmr().modify(|reg| reg.set_finit(true));
+        REGS.0.fctrl().modify(|_, reg| reg.fcs().set_bit());
 
         // Read the filter split value.
-        let bank_count = info.regs.0.fmr().read().can2sb();
+        let bank_count = 14; // unable to split
 
         // (Reset value of CAN2SB is 0x0E, 14, which, in devices with 14 filter banks, assigns all
         // of them to the master peripheral, and in devices with 28, assigns them 50/50 to
@@ -236,7 +235,6 @@ impl MasterFilters<'_> {
         Self {
             bank_count,
             _phantom: PhantomData,
-            info,
         }
     }
 
@@ -244,7 +242,6 @@ impl MasterFilters<'_> {
         FilterBanks {
             start_idx: 0,
             bank_count: self.bank_count,
-            info: self.info,
         }
     }
 
@@ -285,111 +282,116 @@ impl MasterFilters<'_> {
     /// - `index`: the filter index.
     /// - `fifo`: the receive FIFO the filter should pass accepted messages to.
     /// - `config`: the filter configuration.
-    pub fn enable_bank(&mut self, index: u8, fifo: Fifo, config: impl Into<BankConfig>) -> &mut Self {
+    pub fn enable_bank(
+        &mut self,
+        index: u8,
+        fifo: Fifo,
+        config: impl Into<BankConfig>,
+    ) -> &mut Self {
         self.banks_imm().enable(index, fifo, config.into());
         self
     }
 }
 
 impl MasterFilters<'_> {
-    /// Sets the index at which the filter banks owned by the slave peripheral start.
-    pub fn set_split(&mut self, split_index: u8) -> &mut Self {
-        assert!(split_index <= self.info.num_filter_banks);
-        self.info.regs.0.fmr().modify(|reg| reg.set_can2sb(split_index));
-        self.bank_count = split_index;
-        self
-    }
+    // /// Sets the index at which the filter banks owned by the slave peripheral start.
+    // pub fn set_split(&mut self, split_index: u8) -> &mut Self {
+    //     assert!(split_index <= self.info.num_filter_banks);
+    //     REGS.0.fctrl().modify(|_, reg| reg.set_can2sb(split_index));
+    //     self.bank_count = split_index;
+    //     self
+    // }
 
-    /// Accesses the filters assigned to the slave peripheral.
-    pub fn slave_filters(&mut self) -> SlaveFilters<'_> {
-        // NB: This mutably borrows `self`, so it has full access to the filter bank registers.
-        SlaveFilters {
-            start_idx: self.bank_count,
-            bank_count: self.info.num_filter_banks - self.bank_count,
-            _phantom: PhantomData,
-            info: self.info,
-        }
-    }
+    // /// Accesses the filters assigned to the slave peripheral.
+    // pub fn slave_filters(&mut self) -> SlaveFilters<'_> {
+    //     // NB: This mutably borrows `self`, so it has full access to the filter bank registers.
+    //     SlaveFilters {
+    //         start_idx: self.bank_count,
+    //         bank_count: self.info.num_filter_banks - self.bank_count,
+    //         _phantom: PhantomData,
+    //         info: self.info,
+    //     }
+    // }
 }
 
 impl Drop for MasterFilters<'_> {
     #[inline]
     fn drop(&mut self) {
         // Leave initialization mode.
-        self.info.regs.0.fmr().modify(|regs| regs.set_finit(false));
+        REGS.0.fctrl().modify(|_, regs| regs.fcs().clear_bit());
     }
 }
 
-/// Interface to the filter banks assigned to a slave peripheral.
-pub struct SlaveFilters<'a> {
-    start_idx: u8,
-    bank_count: u8,
-    _phantom: PhantomData<&'a ()>,
-    info: &'static crate::can::Info,
-}
+// /// Interface to the filter banks assigned to a slave peripheral.
+// pub struct SlaveFilters<'a> {
+//     start_idx: u8,
+//     bank_count: u8,
+//     _phantom: PhantomData<&'a ()>,
+//     info: &'static crate::can::Info,
+// }
 
-impl SlaveFilters<'_> {
-    fn banks_imm(&self) -> FilterBanks {
-        FilterBanks {
-            start_idx: self.start_idx,
-            bank_count: self.bank_count,
-            info: self.info,
-        }
-    }
+// impl SlaveFilters<'_> {
+//     fn banks_imm(&self) -> FilterBanks {
+//         FilterBanks {
+//             start_idx: self.start_idx,
+//             bank_count: self.bank_count,
+//             info: self.info,
+//         }
+//     }
 
-    /// Returns the number of filter banks currently assigned to this instance.
-    ///
-    /// Chips with splittable filter banks may start out with some banks assigned to the master
-    /// instance and some assigned to the slave instance.
-    pub fn num_banks(&self) -> u8 {
-        self.bank_count
-    }
+//     /// Returns the number of filter banks currently assigned to this instance.
+//     ///
+//     /// Chips with splittable filter banks may start out with some banks assigned to the master
+//     /// instance and some assigned to the slave instance.
+//     pub fn num_banks(&self) -> u8 {
+//         self.bank_count
+//     }
 
-    /// Disables all enabled filter banks.
-    ///
-    /// This causes all incoming frames to be disposed.
-    pub fn clear(&mut self) -> &mut Self {
-        self.banks_imm().clear();
-        self
-    }
+//     /// Disables all enabled filter banks.
+//     ///
+//     /// This causes all incoming frames to be disposed.
+//     pub fn clear(&mut self) -> &mut Self {
+//         self.banks_imm().clear();
+//         self
+//     }
 
-    /// Disables a filter bank.
-    ///
-    /// If `index` is out of bounds, this will panic.
-    pub fn disable_bank(&mut self, index: u8) -> &mut Self {
-        self.banks_imm().disable(index);
-        self
-    }
+//     /// Disables a filter bank.
+//     ///
+//     /// If `index` is out of bounds, this will panic.
+//     pub fn disable_bank(&mut self, index: u8) -> &mut Self {
+//         self.banks_imm().disable(index);
+//         self
+//     }
 
-    /// Configures a filter bank according to `config` and enables it.
-    ///
-    /// # Parameters
-    ///
-    /// - `index`: the filter index.
-    /// - `fifo`: the receive FIFO the filter should pass accepted messages to.
-    /// - `config`: the filter configuration.
-    pub fn enable_bank(&mut self, index: u8, fifo: Fifo, config: impl Into<BankConfig>) -> &mut Self {
-        self.banks_imm().enable(index, fifo, config.into());
-        self
-    }
-}
+//     /// Configures a filter bank according to `config` and enables it.
+//     ///
+//     /// # Parameters
+//     ///
+//     /// - `index`: the filter index.
+//     /// - `fifo`: the receive FIFO the filter should pass accepted messages to.
+//     /// - `config`: the filter configuration.
+//     pub fn enable_bank(&mut self, index: u8, fifo: Fifo, config: impl Into<BankConfig>) -> &mut Self {
+//         self.banks_imm().enable(index, fifo, config.into());
+//         self
+//     }
+// }
 
 struct FilterBanks {
     start_idx: u8,
     bank_count: u8,
-    info: &'static crate::can::Info,
 }
 
 impl FilterBanks {
     fn clear(&mut self) {
         let mask = filter_bitmask(self.start_idx, self.bank_count);
 
-        self.info.regs.0.fa1r().modify(|reg| {
+        REGS.0.facfg().modify(|_, reg| {
             for i in 0..28usize {
                 if (0x01u32 << i) & mask != 0 {
-                    reg.set_fact(i, false);
+                    reg.en(i as u8).disable();
                 }
             }
+            reg
         });
     }
 
@@ -399,11 +401,7 @@ impl FilterBanks {
 
     fn disable(&mut self, index: u8) {
         self.assert_bank_index(index);
-        self.info
-            .regs
-            .0
-            .fa1r()
-            .modify(|reg| reg.set_fact(index as usize, false))
+        REGS.0.facfg().modify(|_, reg| reg.en(index).disable());
     }
 
     fn enable(&mut self, index: u8, fifo: Fifo, config: BankConfig) {
@@ -411,11 +409,11 @@ impl FilterBanks {
 
         // Configure mode.
         let mode = matches!(config, BankConfig::List16(_) | BankConfig::List32(_));
-        self.info.regs.0.fm1r().modify(|reg| reg.set_fbm(index as usize, mode));
+        REGS.0.fmcfg().modify(|_, reg| reg.sel(index).bit(mode));
 
         // Configure scale.
         let scale = matches!(config, BankConfig::List32(_) | BankConfig::Mask32(_));
-        self.info.regs.0.fs1r().modify(|reg| reg.set_fsc(index as usize, scale));
+        REGS.0.fbwcfg().modify(|_, reg| reg.sel(index).bit(scale));
 
         // Configure filter register.
         let (fxr1, fxr2);
@@ -437,23 +435,22 @@ impl FilterBanks {
                 fxr2 = a.mask;
             }
         };
-        let bank = self.info.regs.0.fb(index as usize);
-        bank.fr1().write(|w| w.0 = fxr1);
-        bank.fr2().write(|w| w.0 = fxr2);
+        let bank = REGS.0.filter_bank(index as usize);
+        bank.ffb1().write(|w| w.set(fxr1));
+        bank.ffb2().write(|w| w.set(fxr2));
 
         // Assign to the right FIFO
-        self.info.regs.0.ffa1r().modify(|reg| {
-            reg.set_ffa(
-                index as usize,
-                match fifo {
-                    Fifo::Fifo0 => false,
-                    Fifo::Fifo1 => true,
-                },
-            )
+        REGS.0.frf().modify(|_, reg| {
+            reg.sel(index).bit(match fifo {
+                Fifo::Fifo0 => false,
+                Fifo::Fifo1 => true,
+            })
         });
 
         // Set active.
-        self.info.regs.0.fa1r().modify(|reg| reg.set_fact(index as usize, true))
+        REGS.0
+            .facfg()
+            .modify(|_, reg| reg.en(index).enable());
     }
 }
 

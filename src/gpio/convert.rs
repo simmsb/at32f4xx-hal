@@ -103,7 +103,7 @@ impl<const P: char, const N: u8, MODE: PinMode> Pin<P, N, MODE> {
     #[inline(always)]
     /// Converts pin into specified mode
     pub fn into_mode<M: PinMode>(mut self) -> Pin<P, N, M> {
-        defmt::debug!("Setting pin mode {=char}{=u8} to {}", P, N, M::NAME);
+        defmt::trace!("Setting pin mode {=char}{=u8} to {}", P, N, M::NAME);
         self.mode::<M>();
         Pin::new()
     }

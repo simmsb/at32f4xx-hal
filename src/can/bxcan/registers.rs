@@ -11,7 +11,7 @@ pub(crate) struct Registers(pub crate::pac::CAN1);
 
 impl Registers {
     pub fn enter_init_mode(&self) {
-        defmt::debug!("Can entering init mode");
+        defmt::trace!("Can entering init mode");
         self.0.mctrl().modify(|_, w| {
             w.dzen().disable();
             w.fzen().enable();
@@ -27,7 +27,7 @@ impl Registers {
 
     // Leaves initialization mode, enters sleep mode.
     pub fn leave_init_mode(&self) {
-        defmt::debug!("Can leaving init mode");
+        defmt::trace!("Can leaving init mode");
         self.0.mctrl().modify(|_, reg| {
             reg.dzen().bit(true);
             reg.fzen().bit(false);
@@ -46,7 +46,7 @@ impl Registers {
         let seg1 = u8::from(bt.seg1);
         let seg2 = u8::from(bt.seg2) & 0x7F;
         let sync_jump_width = u8::from(bt.sync_jump_width) & 0x7F;
-        defmt::debug!("Can bit timing: brdiv: {}, bts1: {}, bts2: {}, rsaw: {}", prescaler, seg1, seg2, sync_jump_width);
+        defmt::trace!("Can bit timing: brdiv: {}, bts1: {}, bts2: {}, rsaw: {}", prescaler, seg1, seg2, sync_jump_width);
         self.0.btmg().modify(|_, reg| {
             reg.brdiv().set(prescaler - 1);
             reg.bts1().set(seg1 - 1);

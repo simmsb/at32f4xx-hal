@@ -1,10 +1,10 @@
-// pub mod filter;
+pub mod filter;
 mod registers;
 
 use core::{future::poll_fn, marker::PhantomData};
 use core::task::Poll;
 
-use crate::{crm::{BusTimerClock, Clocks, Enable as _, Reset as _}, interrupt};
+use crate::{crm::{BusClock as _, BusTimerClock, Clocks, Enable as _, Reset as _}, interrupt};
 
 use at32f4xx_pac::at32f415::CAN1;
 use cortex_m::peripheral::NVIC;
@@ -13,7 +13,7 @@ use embassy_sync::channel::Channel;
 use embassy_sync::waitqueue::AtomicWaker;
 pub use embedded_can::{ExtendedId, Id, StandardId};
 
-// use self::filter::MasterFilters;
+use self::filter::MasterFilters;
 use self::registers::{Registers, RxFifo};
 pub use super::common::{BufferedCanReceiver, BufferedCanSender};
 use super::frame::{Envelope, Frame};
@@ -24,7 +24,7 @@ const REGS: Registers = Registers(unsafe { crate::pac::CAN1::steal() });
 
 #[interrupt]
 fn CAN1_TX() {
-    defmt::debug!("interrupt: Can1 TX");
+    defmt::trace!("interrupt: Can1 TX");
     let regs = unsafe { CAN1::steal() };
     regs.tsts().write(|w| {
         w.tmtcf(0).clear_bit_by_one();
@@ -40,7 +40,7 @@ fn CAN1_TX() {
 
 #[interrupt]
 fn CAN1_RX0() {
-    defmt::debug!("interrupt: Can1 RX0");
+    defmt::trace!("interrupt: Can1 RX0");
     STATE.lock(|state| {
         state.borrow().rx_mode.on_interrupt(RxFifo::Fifo0);
     });
@@ -48,7 +48,7 @@ fn CAN1_RX0() {
 
 #[interrupt]
 fn CAN1_RX1() {
-    defmt::debug!("interrupt: Can1 RX1");
+    defmt::trace!("interrupt: Can1 RX1");
     STATE.lock(|state| {
         state.borrow().rx_mode.on_interrupt(RxFifo::Fifo1);
     });
@@ -56,12 +56,12 @@ fn CAN1_RX1() {
 
 #[interrupt]
 fn CAN1_SE() {
-    defmt::debug!("interrupt: Can1 SE");
+    defmt::trace!("interrupt: Can1 SE");
     let regs = unsafe { CAN1::steal() };
     let msr = regs.msts();
     let msr_val = msr.read();
 
-    defmt::debug!("Can1 SE: {}", regs.ests().read().etr().bits());
+    defmt::trace!("Can1 SE: {}", regs.ests().read().etr().bits());
 
     if msr_val.edzif().bit_is_set() {
         msr.modify(|_, m| m.edzif().clear_bit_by_one());
@@ -179,8 +179,8 @@ impl Can {
         {
             regs.inten().write(|w| {
                 w.eoien().set_bit();
-                w.rfoien(0).set_bit();
-                w.rfoien(1).set_bit();
+                w.rfmien(0).set_bit();
+                w.rfmien(1).set_bit();
                 w.tcien().set_bit();
                 w.boien().set_bit();
                 w.epien().set_bit();
@@ -213,8 +213,8 @@ impl Can {
 
         Registers(regs).leave_init_mode();
 
-        let periph_clock = CAN1::timer_clock(clocks);
-        defmt::debug!("Starting can with clock: {}", periph_clock.to_Hz());
+        let periph_clock = CAN1::clock(clocks);
+        // defmt::trace!("Starting can with clock: {}", periph_clock.to_Hz());
 
         Self {
             periph_clock,
@@ -244,6 +244,7 @@ impl Can {
     /// This will wait for 11 consecutive recessive bits (bus idle state).
     /// Contrary to enable method from bxcan library, this will not freeze the executor while waiting.
     pub async fn enable(&mut self) {
+        defmt::trace!("Can  BTR: {:x}", REGS.0.btmg().read().bits());
         while REGS.enable_non_blocking().is_err() {
             // SCE interrupt is only generated for entering sleep mode, but not leaving.
             // Yield to allow other tasks to execute while can bus is initializing.
@@ -421,15 +422,15 @@ impl Can {
     }
 }
 
-// impl Can {
-//     /// Accesses the filter banks owned by this CAN peripheral.
-//     ///
-//     /// To modify filters of a slave peripheral, `modify_filters` has to be called on the master
-//     /// peripheral instead.
-//     pub fn modify_filters(&mut self) -> MasterFilters<'_> {
-//         unsafe { MasterFilters::new(&self.info) }
-//     }
-// }
+impl Can {
+    /// Accesses the filter banks owned by this CAN peripheral.
+    ///
+    /// To modify filters of a slave peripheral, `modify_filters` has to be called on the master
+    /// peripheral instead.
+    pub fn modify_filters(&mut self) -> MasterFilters<'_> {
+        unsafe { MasterFilters::new() }
+    }
+}
 
 /// Buffered CAN driver.
 pub struct BufferedCan<'a, const TX_BUF_SIZE: usize, const RX_BUF_SIZE: usize> {
@@ -472,13 +473,13 @@ impl<'a, const TX_BUF_SIZE: usize, const RX_BUF_SIZE: usize>
         self.rx.reader()
     }
 
-    // /// Accesses the filter banks owned by this CAN peripheral.
-    // ///
-    // /// To modify filters of a slave peripheral, `modify_filters` has to be called on the master
-    // /// peripheral instead.
-    // pub fn modify_filters(&mut self) -> MasterFilters<'_> {
-    //     self.rx.modify_filters()
-    // }
+    /// Accesses the filter banks owned by this CAN peripheral.
+    ///
+    /// To modify filters of a slave peripheral, `modify_filters` has to be called on the master
+    /// peripheral instead.
+    pub fn modify_filters(&mut self) -> MasterFilters<'_> {
+        self.rx.modify_filters()
+    }
 }
 
 /// CAN driver, transmit half.
@@ -697,13 +698,13 @@ impl<'a> CanRx<'a> {
         BufferedCanRx::new(self, rxb)
     }
 
-    // /// Accesses the filter banks owned by this CAN peripheral.
-    // ///
-    // /// To modify filters of a slave peripheral, `modify_filters` has to be called on the master
-    // /// peripheral instead.
-    // pub fn modify_filters(&mut self) -> MasterFilters<'_> {
-    //     unsafe { MasterFilters::new(&self.info) }
-    // }
+    /// Accesses the filter banks owned by this CAN peripheral.
+    ///
+    /// To modify filters of a slave peripheral, `modify_filters` has to be called on the master
+    /// peripheral instead.
+    pub fn modify_filters(&mut self) -> MasterFilters<'_> {
+        unsafe { MasterFilters::new() }
+    }
 }
 
 /// User supplied buffer for RX Buffering
@@ -712,14 +713,14 @@ pub type RxBuf<const BUF_SIZE: usize> =
 
 /// CAN driver, receive half in Buffered mode.
 pub struct BufferedCanRx<'a, const RX_BUF_SIZE: usize> {
-    _rx: CanRx<'a>,
+    rx: CanRx<'a>,
     rx_buf: &'static RxBuf<RX_BUF_SIZE>,
 }
 
 impl<'a, const RX_BUF_SIZE: usize> BufferedCanRx<'a, RX_BUF_SIZE> {
-    fn new(_rx: CanRx<'a>, rx_buf: &'static RxBuf<RX_BUF_SIZE>) -> Self {
+    fn new(rx: CanRx<'a>, rx_buf: &'static RxBuf<RX_BUF_SIZE>) -> Self {
         BufferedCanRx {
-            _rx,
+            rx,
             rx_buf,
         }
         .setup()
@@ -780,13 +781,13 @@ impl<'a, const RX_BUF_SIZE: usize> BufferedCanRx<'a, RX_BUF_SIZE> {
         }
     }
 
-    // /// Accesses the filter banks owned by this CAN peripheral.
-    // ///
-    // /// To modify filters of a slave peripheral, `modify_filters` has to be called on the master
-    // /// peripheral instead.
-    // pub fn modify_filters(&mut self) -> MasterFilters<'_> {
-    //     self.rx.modify_filters()
-    // }
+    /// Accesses the filter banks owned by this CAN peripheral.
+    ///
+    /// To modify filters of a slave peripheral, `modify_filters` has to be called on the master
+    /// peripheral instead.
+    pub fn modify_filters(&mut self) -> MasterFilters<'_> {
+        self.rx.modify_filters()
+    }
 }
 
 impl Drop for Can {
@@ -880,6 +881,7 @@ impl RxMode {
         poll_fn(|cx| {
             STATE.lock(|state| {
                 let state = state.borrow();
+                defmt::trace!("Setting rx waker");
                 state.err_waker.register(cx.waker());
                 match &state.rx_mode {
                     Self::NonBuffered(waker) => {
@@ -915,6 +917,7 @@ impl RxMode {
                 } else if let Some(err) = registers.curr_error() {
                     Err(TryReadError::BusError(err))
                 } else {
+                    defmt::trace!("Enabling rx interrupts");
                     registers.0.inten().modify(|_, w| {
                         w.rfmien(0).enable();
                         w.rfmien(1).enable();
