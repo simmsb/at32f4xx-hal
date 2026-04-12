@@ -14,11 +14,16 @@
 //! the embedded-hal read and write traits with `u16` as the word type. You can use these
 //! implementations for 9-bit words.
 
-use core::marker::PhantomData;
+use core::{
+    marker::PhantomData, ops::Deref, sync::atomic::{Ordering, compiler_fence}, task::Poll
+};
 
 mod hal;
 
+use super::interrupt;
+
 pub(crate) mod uart_impls;
+use embassy_sync::waitqueue::AtomicWaker;
 pub use uart_impls::Instance;
 use uart_impls::RegisterBlockImpl;
 
@@ -29,8 +34,114 @@ use crate::pac;
 use crate::crm::Clocks;
 use crate::gpio::NoPin;
 
+use pac::NVIC;
+
 /// Serial error
 pub use embedded_hal_nb::serial::ErrorKind as Error;
+
+static USART1_STATE: State = State {
+    rx_waker: AtomicWaker::new(),
+    tx_waker: AtomicWaker::new(),
+};
+static USART2_STATE: State = State {
+    rx_waker: AtomicWaker::new(),
+    tx_waker: AtomicWaker::new(),
+};
+static USART3_STATE: State = State {
+    rx_waker: AtomicWaker::new(),
+    tx_waker: AtomicWaker::new(),
+};
+pub static UART4_STATE: State = State {
+    rx_waker: AtomicWaker::new(),
+    tx_waker: AtomicWaker::new(),
+};
+pub static UART5_STATE: State = State {
+    rx_waker: AtomicWaker::new(),
+    tx_waker: AtomicWaker::new(),
+};
+
+pub struct State {
+    rx_waker: AtomicWaker,
+    tx_waker: AtomicWaker,
+}
+
+#[interrupt]
+fn USART1() {
+    on_interrupt(unsafe { &*pac::USART1::ptr() }, &USART1_STATE);
+}
+
+#[interrupt]
+fn USART2() {
+    on_interrupt(unsafe { &*pac::USART2::ptr() }, &USART2_STATE);
+}
+
+#[interrupt]
+fn USART3() {
+    on_interrupt(unsafe { &*pac::USART3::ptr() }, &USART3_STATE);
+}
+
+#[interrupt]
+fn UART4() {
+    on_interrupt(unsafe { &*pac::UART4::ptr() }, &UART4_STATE);
+}
+
+#[interrupt]
+fn UART5() {
+    on_interrupt(unsafe { &*pac::UART5::ptr() }, &UART5_STATE);
+}
+
+fn on_interrupt(r: &pac::usart1::RegisterBlock, state: &State) {
+    let (sr, cr1, cr3) = (r.sts().read(), r.ctrl1().read(), r.ctrl3().read());
+
+    let has_errors = (sr.perr().is_error() && cr1.perrien().is_enabled())
+        || ((sr.ferr().is_error() || sr.nerr().is_noise() || sr.roerr().is_overflow())
+            && cr3.errien().is_enabled());
+
+    if has_errors {
+        // clear all interrupts and DMA Rx Request
+        r.ctrl1().modify(|_, w| {
+            // disable RXNE interrupt
+            w.rdbfien().disable();
+            // disable parity interrupt
+            w.perrien().disable();
+            // disable idle line interrupt
+            w.idleien().disable();
+            w
+        });
+        r.ctrl3().modify(|_, w| {
+            // disable Error Interrupt: (Frame error, Noise error, Overrun error)
+            w.errien().disable();
+            // disable DMA Rx Request
+            w.dmaren().disable();
+            w
+        });
+    } else if cr1.idleien().is_enabled() && sr.idlef().is_idle() {
+        // IDLE detected: no more data will come
+        r.ctrl1().modify(|_, w| {
+            // disable idle line detection
+            w.idleien().disable();
+            w
+        });
+    } else if cr1.tdcien().is_enabled() && sr.tdc().is_completed() {
+        // Transmission complete detected
+        r.ctrl1().modify(|_, w| {
+            // disable Transmission complete interrupt
+            w.tdcien().disable();
+            w
+        });
+    } else if cr1.rdbfien().is_enabled() && sr.rdbf().is_full() {
+        r.ctrl1().modify(|_, w| {
+            w.rdbfien().disable();
+            w
+        });
+    } else {
+        return;
+    }
+
+    compiler_fence(Ordering::SeqCst);
+    state.rx_waker.wake();
+    state.tx_waker.wake();
+}
 
 /// Interrupt event
 pub enum Event {
@@ -178,6 +289,62 @@ impl<USART: Instance, WORD> Serial<USART, WORD> {
         <USART as Instance>::RegisterBlock::new(usart, pins, config, clocks)
     }
 }
+// impl<USART: Instance> embedded_io_async::ErrorType for Rx<USART, u8> {
+//     type Error = ();
+// }
+
+impl<USART: Instance> embedded_io_async::Read for Rx<USART, u8>
+where
+    <USART as Instance>::RegisterBlock: RegisterBlockImpl,
+{
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        if buf.len() == 0 {
+            return Ok(0);
+        }
+
+        core::future::poll_fn(|cx| {
+            if let Ok(b) = <Self as embedded_hal_nb::serial::Read>::read(self) {
+                buf[0] = b;
+                return Poll::Ready(Ok(1));
+            }
+
+            <Self as RxListen>::listen(self);
+            USART::STATE.rx_waker.register(cx.waker());
+
+            Poll::Pending
+        })
+        .await
+    }
+}
+
+
+impl<USART: Instance> embedded_io_async::Write for Tx<USART, u8>
+where
+    <USART as Instance>::RegisterBlock: RegisterBlockImpl,
+    USART: Deref<Target = <USART as Instance>::RegisterBlock>,
+{
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        if buf.len() == 0 {
+            return Ok(0);
+        }
+
+        core::future::poll_fn(|cx| {
+            if let Ok(b) = <Self as embedded_hal_nb::serial::Write>::write(self, buf[0]) {
+                return Poll::Ready(Ok(1));
+            }
+
+            <Self as TxListen>::listen(self);
+            USART::STATE.tx_waker.register(cx.waker());
+
+            Poll::Pending
+        })
+        .await
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
 
 impl<UART: CommonPins, WORD> Serial<UART, WORD> {
     pub fn split(self) -> (Tx<UART, WORD>, Rx<UART, WORD>) {
@@ -191,13 +358,20 @@ impl<UART: CommonPins, WORD> Serial<UART, WORD> {
 }
 
 macro_rules! halUsart {
-    ($USART:ty, $Serial:ident, $Rx:ident, $Tx:ident) => {
+    ($USART:ty, $Serial:ident, $Rx:ident, $Tx:ident, $state:ident, $intr:ident) => {
         pub type $Serial<WORD = u8> = Serial<$USART, WORD>;
         pub type $Rx<WORD = u8> = Rx<$USART, WORD>;
         pub type $Tx<WORD = u8> = Tx<$USART, WORD>;
 
         impl Instance for $USART {
+            const STATE: &'static State = &$state;
+
             type RegisterBlock = crate::serial::uart_impls::RegisterBlockUsart;
+
+            fn setup_interrupts() {
+                NVIC::unpend(interrupt::$intr);
+                unsafe { NVIC::unmask(interrupt::$intr) };
+            }
 
             fn ptr() -> *const crate::serial::uart_impls::RegisterBlockUsart {
                 <$USART>::ptr() as *const _
@@ -220,11 +394,11 @@ macro_rules! halUsart {
     };
 }
 
-halUsart! { pac::USART1, Serial1, Rx1, Tx1 }
-halUsart! { pac::USART2, Serial2, Rx2, Tx2 }
+halUsart! { pac::USART1, Serial1, Rx1, Tx1, USART1_STATE, USART1 }
+halUsart! { pac::USART2, Serial2, Rx2, Tx2, USART2_STATE, USART2 }
 
 #[cfg(feature = "usart3")]
-halUsart! { pac::USART3, Serial3, Rx3, Tx3 }
+halUsart! { pac::USART3, Serial3, Rx3, Tx3, USART3_STATE, USART3 }
 
 impl<UART: CommonPins> Rx<UART, u8> {
     pub(crate) fn with_u16_data(self) -> Rx<UART, u16> {

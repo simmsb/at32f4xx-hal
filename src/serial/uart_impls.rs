@@ -3,7 +3,7 @@ use core::{fmt, ops::Deref};
 use nb::block;
 
 use super::{
-    Error, Event, Listen, Rx, RxISR, RxListen, Serial, SerialExt, Tx, TxISR, TxListen, config,
+    Error, Event, Listen, Rx, RxISR, RxListen, Serial, SerialExt, State, Tx, TxISR, TxListen, config
 };
 // use crate::dma::{
 //     traits::{DMASet, PeriAddress},
@@ -21,6 +21,9 @@ impl crate::Sealed for RegisterBlockUsart {}
 // Implemented by all USART/UART instances
 pub trait Instance: crate::Sealed + crm::Enable + crm::Reset + crm::BusClock + CommonPins {
     type RegisterBlock;
+    const STATE: &State;
+
+    fn setup_interrupts();
 
     #[doc(hidden)]
     fn ptr() -> *const Self::RegisterBlock;

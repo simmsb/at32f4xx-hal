@@ -19,19 +19,28 @@ use crate::pac;
 #[cfg(feature = "uart4")]
 use crate::serial::uart_impls::RegisterBlockUart;
 
-pub use crate::serial::{Event, Instance, NoRx, NoTx, Rx, RxISR, Serial, Tx, TxISR, config};
+use crate::interrupt;
+use crate::pac::NVIC;
+pub use crate::serial::{Event, Instance, NoRx, NoTx, Rx, RxISR, Serial, Tx, TxISR, config, UART4_STATE, UART5_STATE, State};
 pub use config::Config;
 /// Serial error
 pub use embedded_io::ErrorKind as Error;
 
 macro_rules! halUart {
-    ($UART:ty, $Serial:ident, $Rx:ident, $Tx:ident) => {
+    ($UART:ty, $Serial:ident, $Rx:ident, $Tx:ident, $state:expr, $intr:ident) => {
         pub type $Serial<WORD = u8> = Serial<$UART, WORD>;
         pub type $Tx<WORD = u8> = Tx<$UART, WORD>;
         pub type $Rx<WORD = u8> = Rx<$UART, WORD>;
 
         impl Instance for $UART {
             type RegisterBlock = RegisterBlockUart;
+            const STATE: &State = &$state;
+
+            fn setup_interrupts() {
+                NVIC::unpend(interrupt::$intr);
+                unsafe { NVIC::unmask(interrupt::$intr) };
+            }
+
 
             fn ptr() -> *const RegisterBlockUart {
                 <$UART>::ptr() as *const _
@@ -59,9 +68,9 @@ macro_rules! halUart {
 }
 
 #[cfg(feature = "uart4")]
-halUart! { pac::UART4, Serial4, Rx4, Tx4 }
+halUart! { pac::UART4, Serial4, Rx4, Tx4, UART4_STATE, UART4 }
 #[cfg(feature = "uart5")]
-halUart! { pac::UART5, Serial5, Rx5, Tx5 }
+halUart! { pac::UART5, Serial5, Rx5, Tx5, UART5_STATE, UART5 }
 #[cfg(feature = "uart7")]
 crate::serial::halUsart! { pac::UART7, Serial7, Rx7, Tx7 }
 #[cfg(feature = "uart8")]
