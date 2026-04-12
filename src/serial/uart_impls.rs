@@ -185,6 +185,8 @@ macro_rules! uartCommon {
                     DmaConfig::None => {}
                 }
 
+                UART::setup_interrupts();
+
                 let serial = Serial {
                     tx: Tx::new(uart, pins.0.into()),
                     rx: Rx::new(pins.1.into()),
