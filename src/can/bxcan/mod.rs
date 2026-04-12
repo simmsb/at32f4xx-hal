@@ -214,7 +214,7 @@ impl Can {
         Registers(regs).leave_init_mode();
 
         let periph_clock = CAN1::clock(clocks);
-        // defmt::trace!("Starting can with clock: {}", periph_clock.to_Hz());
+        defmt::debug!("Starting can with clock: {}", periph_clock.to_Hz());
 
         Self {
             periph_clock,
@@ -244,7 +244,6 @@ impl Can {
     /// This will wait for 11 consecutive recessive bits (bus idle state).
     /// Contrary to enable method from bxcan library, this will not freeze the executor while waiting.
     pub async fn enable(&mut self) {
-        defmt::trace!("Can  BTR: {:x}", REGS.0.btmg().read().bits());
         while REGS.enable_non_blocking().is_err() {
             // SCE interrupt is only generated for entering sleep mode, but not leaving.
             // Yield to allow other tasks to execute while can bus is initializing.

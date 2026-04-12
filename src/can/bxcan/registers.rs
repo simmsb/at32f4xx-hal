@@ -46,7 +46,7 @@ impl Registers {
         let seg1 = u8::from(bt.seg1);
         let seg2 = u8::from(bt.seg2) & 0x7F;
         let sync_jump_width = u8::from(bt.sync_jump_width) & 0x7F;
-        defmt::trace!("Can bit timing: brdiv: {}, bts1: {}, bts2: {}, rsaw: {}", prescaler, seg1, seg2, sync_jump_width);
+        defmt::debug!("Can bit timing: brdiv: {}, bts1: {}, bts2: {}, rsaw: {}", prescaler, seg1, seg2, sync_jump_width);
         self.0.btmg().modify(|_, reg| {
             reg.brdiv().set(prescaler - 1);
             reg.bts1().set(seg1 - 1);

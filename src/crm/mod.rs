@@ -463,9 +463,9 @@ impl CFGR {
             (None, if let Some(hse) = hse { hse } else { HSI })
         } else {
             let pllmul = match pllmul {
-                4..=9 => pllmul,
-                0..=3 => 4,
-                _ => 9,
+                2..=64 => pllmul,
+                0..=1 => 2,
+                _ => 64,
             };
 
             (Some(pllmul as u8 - 2), pllsrcclk * pllmul)
@@ -501,7 +501,7 @@ impl CFGR {
             36_000_000
         };
         let ppre1_bits = match (hclk + pclk1 - 1) / pclk1 {
-            0 | 1 => PPre::Div1,
+            0..=1 => PPre::Div1,
             2 => PPre::Div2,
             3..=5 => PPre::Div4,
             6..=11 => PPre::Div8,
@@ -509,7 +509,7 @@ impl CFGR {
         };
 
         let ppre2_bits = if let Some(pclk2) = self.pclk2 {
-            match hclk / pclk2 {
+            match hclk.div_ceil(pclk2) {
                 0..=1 => PPre::Div1,
                 2 => PPre::Div2,
                 3..=5 => PPre::Div4,
@@ -560,7 +560,8 @@ impl CFGR {
 
         if let Some(pllmul_bits) = pllmul_bits {
             crm.cfg().modify(|_, w| unsafe {
-                w.pllmult3_0().bits(pllmul_bits);
+                w.pllmult3_0().bits(pllmul_bits & 0b1111);
+                w.pllmult5_4().bits((pllmul_bits >> 4) & 0b11);
                 w.pllrcs().bit(hse.is_some());
                 w
             });
