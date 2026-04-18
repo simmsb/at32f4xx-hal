@@ -27,12 +27,12 @@ fn main() -> ! {
 
     // wait until timer expires
     nb::block!(timer.wait()).unwrap();
-    defmt::info!("timer expired 1");
+    defmt::trace!("timer expired 1");
 
     // the function syst() creates a periodic timer, so it is automatically
     // restarted
     nb::block!(timer.wait()).unwrap();
-    defmt::info!("timer expired 2");
+    defmt::trace!("timer expired 2");
 
     // cancel current timer
     timer.cancel().unwrap();
@@ -40,7 +40,7 @@ fn main() -> ! {
     // start it again
     timer.start(42.millis()).unwrap();
     nb::block!(timer.wait()).unwrap();
-    defmt::info!("timer expired 3");
+    defmt::trace!("timer expired 3");
 
     timer.cancel().unwrap();
     let cancel_outcome = timer.cancel();

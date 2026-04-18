@@ -22,13 +22,13 @@ fn main() -> ! {
     let mut led4 = gpiob.pb11.into_push_pull_output();
     loop {
         cortex_m::asm::delay(1_000_000);
-        defmt::info!("Toggle LED2");
+        defmt::trace!("Toggle LED2");
         led2.toggle();
         cortex_m::asm::delay(1_000_000);
-        defmt::info!("Toggle LED3");
+        defmt::trace!("Toggle LED3");
         led3.toggle();
         cortex_m::asm::delay(1_000_000);
-        defmt::info!("Toggle LED4");
+        defmt::trace!("Toggle LED4");
         led4.toggle();
     }
 }

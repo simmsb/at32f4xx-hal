@@ -37,6 +37,7 @@ macro_rules! halUart {
             const STATE: &State = &$state;
 
             fn setup_interrupts() {
+                defmt::trace!("Setting up uart interrupts");
                 NVIC::unpend(interrupt::$intr);
                 unsafe { NVIC::unmask(interrupt::$intr) };
             }

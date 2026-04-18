@@ -27,7 +27,7 @@ use embassy_sync::waitqueue::AtomicWaker;
 pub use uart_impls::Instance;
 use uart_impls::RegisterBlockImpl;
 
-use crate::gpio::{self, PushPull};
+use crate::gpio::{self, Input, PushPull};
 
 use crate::pac;
 
@@ -115,28 +115,43 @@ fn on_interrupt(r: &pac::usart1::RegisterBlock, state: &State) {
             w.dmaren().disable();
             w
         });
-    } else if cr1.idleien().is_enabled() && sr.idlef().is_idle() {
+    }
+
+    if cr1.idleien().is_enabled() && sr.idlef().is_idle() {
         // IDLE detected: no more data will come
         r.ctrl1().modify(|_, w| {
             // disable idle line detection
             w.idleien().disable();
             w
         });
-    } else if cr1.tdcien().is_enabled() && sr.tdc().is_completed() {
+    }
+
+    if cr1.tdcien().is_enabled() && sr.tdc().is_completed() {
         // Transmission complete detected
         r.ctrl1().modify(|_, w| {
             // disable Transmission complete interrupt
             w.tdcien().disable();
             w
         });
-    } else if cr1.rdbfien().is_enabled() && sr.rdbf().is_full() {
+    }
+
+    if cr1.tdbeien().is_enabled() && sr.tdbe().is_empty() {
+        // Transmission complete detected
+        r.ctrl1().modify(|_, w| {
+            // disable Transmission complete interrupt
+            w.tdbeien().disable();
+            w
+        });
+    }
+
+    if cr1.rdbfien().is_enabled() && sr.rdbf().is_full() {
         r.ctrl1().modify(|_, w| {
             w.rdbfien().disable();
             w
         });
-    } else {
-        return;
     }
+
+    // defmt::debug!("uart intr: {:b}", sr.bits());
 
     compiler_fence(Ordering::SeqCst);
     state.rx_waker.wake();
@@ -236,7 +251,7 @@ pub struct Serial<USART: CommonPins, WORD = u8> {
 /// Serial receiver containing RX pin
 pub struct Rx<USART: CommonPins, WORD = u8> {
     _word: PhantomData<(USART, WORD)>,
-    pin: USART::Rx<PushPull>,
+    pin: USART::Rx<Input>,
 }
 
 /// Serial transmitter containing TX pin
@@ -249,7 +264,7 @@ pub struct Tx<USART: CommonPins, WORD = u8> {
 pub trait SerialExt: Sized + Instance {
     fn serial<WORD>(
         self,
-        pins: (impl Into<Self::Tx<PushPull>>, impl Into<Self::Rx<PushPull>>),
+        pins: (impl Into<Self::Tx<PushPull>>, impl Into<Self::Rx<Input>>),
         config: impl Into<config::Config>,
         clocks: &Clocks,
     ) -> Result<Serial<Self, WORD>, config::InvalidConfig>;
@@ -261,11 +276,11 @@ pub trait SerialExt: Sized + Instance {
         clocks: &Clocks,
     ) -> Result<Tx<Self, WORD>, config::InvalidConfig>
     where
-        NoPin: Into<Self::Rx<PushPull>>;
+        NoPin: Into<Self::Rx<Input>>;
 
     fn rx<WORD>(
         self,
-        rx_pin: impl Into<Self::Rx<PushPull>>,
+        rx_pin: impl Into<Self::Rx<Input>>,
         config: impl Into<config::Config>,
         clocks: &Clocks,
     ) -> Result<Rx<Self, WORD>, config::InvalidConfig>
@@ -278,7 +293,7 @@ impl<USART: Instance, WORD> Serial<USART, WORD> {
         usart: USART,
         pins: (
             impl Into<USART::Tx<PushPull>>,
-            impl Into<USART::Rx<PushPull>>,
+            impl Into<USART::Rx<Input>>,
         ),
         config: impl Into<config::Config>,
         clocks: &Clocks,
@@ -303,13 +318,15 @@ where
         }
 
         core::future::poll_fn(|cx| {
+            USART::STATE.rx_waker.register(cx.waker());
+            <Self as RxListen>::listen(self);
+
             if let Ok(b) = <Self as embedded_hal_nb::serial::Read>::read(self) {
                 buf[0] = b;
                 return Poll::Ready(Ok(1));
             }
 
-            <Self as RxListen>::listen(self);
-            USART::STATE.rx_waker.register(cx.waker());
+            defmt::trace!("uart listen pend");
 
             Poll::Pending
         })
@@ -329,12 +346,14 @@ where
         }
 
         core::future::poll_fn(|cx| {
+            USART::STATE.tx_waker.register(cx.waker());
+            <Self as TxListen>::listen(self);
+
             if let Ok(b) = <Self as embedded_hal_nb::serial::Write>::write(self, buf[0]) {
                 return Poll::Ready(Ok(1));
             }
 
-            <Self as TxListen>::listen(self);
-            USART::STATE.tx_waker.register(cx.waker());
+            defmt::trace!("uart write pend");
 
             Poll::Pending
         })
@@ -352,7 +371,7 @@ impl<UART: CommonPins, WORD> Serial<UART, WORD> {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn release(self) -> (UART, (UART::Tx<PushPull>, UART::Rx<PushPull>)) {
+    pub fn release(self) -> (UART, (UART::Tx<PushPull>, UART::Rx<Input>)) {
         (self.tx.usart, (self.tx.pin, self.rx.pin))
     }
 }
@@ -369,6 +388,7 @@ macro_rules! halUsart {
             type RegisterBlock = crate::serial::uart_impls::RegisterBlockUsart;
 
             fn setup_interrupts() {
+                defmt::trace!("Setting up uart interrupts");
                 NVIC::unpend(interrupt::$intr);
                 unsafe { NVIC::unmask(interrupt::$intr) };
             }
@@ -425,7 +445,7 @@ impl<UART: CommonPins> Tx<UART, u16> {
 }
 
 impl<UART: CommonPins, WORD> Rx<UART, WORD> {
-    pub(crate) fn new(pin: UART::Rx<PushPull>) -> Self {
+    pub(crate) fn new(pin: UART::Rx<Input>) -> Self {
         Self {
             _word: PhantomData,
             pin,

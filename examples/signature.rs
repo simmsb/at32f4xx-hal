@@ -15,8 +15,8 @@ fn main() -> ! {
     let pid = id_code.pid();
     let mcu = id_code.mcu();
     let flash_size = FlashSize::from_pid(pid).kilo_bytes();
-    defmt::info!("MCU PID: 0x{:X}", pid);
-    defmt::info!("MCU part number: {}", mcu);
-    defmt::info!("Flash size: {} kb", flash_size);
+    defmt::trace!("MCU PID: 0x{:X}", pid);
+    defmt::trace!("MCU part number: {}", mcu);
+    defmt::trace!("Flash size: {} kb", flash_size);
     loop {}
 }

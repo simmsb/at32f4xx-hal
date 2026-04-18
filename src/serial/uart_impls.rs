@@ -10,7 +10,7 @@ use super::{
 //     MemoryToPeripheral, PeripheralToMemory,
 // };
 use crate::crm::{self, Clocks};
-use crate::gpio::{NoPin, PushPull, alt::SerialAsync as CommonPins};
+use crate::gpio::{NoPin, PushPull, Input, alt::SerialAsync as CommonPins};
 
 #[cfg(feature = "uart4")]
 pub(crate) use crate::pac::uart4::RegisterBlock as RegisterBlockUart;
@@ -35,7 +35,7 @@ pub trait RegisterBlockImpl: crate::Sealed {
     #[allow(clippy::new_ret_no_self)]
     fn new<UART: Instance<RegisterBlock = Self>, WORD>(
         uart: UART,
-        pins: (impl Into<UART::Tx<PushPull>>, impl Into<UART::Rx<PushPull>>),
+        pins: (impl Into<UART::Tx<PushPull>>, impl Into<UART::Rx<Input>>),
         config: impl Into<config::Config>,
         clocks: &Clocks,
     ) -> Result<Serial<UART, WORD>, config::InvalidConfig>;
@@ -104,7 +104,7 @@ macro_rules! uartCommon {
         impl RegisterBlockImpl for $RegisterBlock {
             fn new<UART: Instance<RegisterBlock = Self>, WORD>(
                 uart: UART,
-                pins: (impl Into<UART::Tx<PushPull>>, impl Into<UART::Rx<PushPull>>),
+                pins: (impl Into<UART::Tx<PushPull>>, impl Into<UART::Rx<Input>>),
                 config: impl Into<config::Config>,
                 clocks: &Clocks,
             ) -> Result<Serial<UART, WORD>, config::InvalidConfig>
@@ -169,6 +169,8 @@ macro_rules! uartCommon {
                     w.pen().bit(config.parity != Parity::ParityNone);
                     w.psel().bit(config.parity == Parity::ParityOdd)
                 });
+
+                defmt::trace!("usart initialised");
 
                 match config.dma {
                     DmaConfig::Tx => {
@@ -445,7 +447,7 @@ where
 {
     fn serial<WORD>(
         self,
-        pins: (impl Into<Self::Tx<PushPull>>, impl Into<Self::Rx<PushPull>>),
+        pins: (impl Into<Self::Tx<PushPull>>, impl Into<Self::Rx<Input>>),
         config: impl Into<config::Config>,
         clocks: &Clocks,
     ) -> Result<Serial<Self, WORD>, config::InvalidConfig> {
@@ -458,13 +460,13 @@ where
         clocks: &Clocks,
     ) -> Result<Tx<Self, WORD>, config::InvalidConfig>
     where
-        NoPin: Into<Self::Rx<PushPull>>,
+        NoPin: Into<Self::Rx<Input>>,
     {
         Serial::tx(self, tx_pin, config, clocks)
     }
     fn rx<WORD>(
         self,
-        rx_pin: impl Into<Self::Rx<PushPull>>,
+        rx_pin: impl Into<Self::Rx<Input>>,
         config: impl Into<config::Config>,
         clocks: &Clocks,
     ) -> Result<Rx<Self, WORD>, config::InvalidConfig>
@@ -486,7 +488,7 @@ where
         clocks: &Clocks,
     ) -> Result<Tx<UART, WORD>, config::InvalidConfig>
     where
-        NoPin: Into<UART::Rx<PushPull>>,
+        NoPin: Into<UART::Rx<Input>>,
     {
         Self::new(usart, (tx_pin, NoPin::new()), config, clocks).map(|s| s.split().0)
     }
@@ -498,7 +500,7 @@ where
 {
     pub fn rx(
         usart: UART,
-        rx_pin: impl Into<UART::Rx<PushPull>>,
+        rx_pin: impl Into<UART::Rx<Input>>,
         config: impl Into<config::Config>,
         clocks: &Clocks,
     ) -> Result<Rx<UART, WORD>, config::InvalidConfig>

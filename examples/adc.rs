@@ -30,6 +30,6 @@ fn main() -> ! {
         cortex_m::asm::delay(1_000_000);
         adc.start_conversion();
         result = adc.current_sample();
-        defmt::info!("ADC conversion {}", result);
+        defmt::trace!("ADC conversion {}", result);
     }
 }

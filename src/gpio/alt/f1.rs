@@ -342,7 +342,7 @@ pub mod usart1 {
     }
 
     pin! {
-        <Rx> default: PushPull for no:NoPin, [
+        <Rx> default: Input for no:NoPin, [
             PA10<1>,
 
             PB7<1>,
@@ -387,7 +387,7 @@ pub mod usart2 {
     }
 
     pin! {
-        <Rx> default: PushPull for no:NoPin, [
+        <Rx> default: Input for no:NoPin, [
             PA3<1>,
         ],
 
@@ -429,7 +429,7 @@ pub mod usart3 {
     }
 
     pin! {
-        <Rx> default: PushPull for no:NoPin, [
+        <Rx> default: Input for no:NoPin, [
             PB11<1>,
         ],
 
@@ -456,7 +456,7 @@ pub mod usart3 {
 pub mod uart4 {
     use super::*;
     pin! {
-        <Rx> default: PushPull for no:NoPin, [
+        <Rx> default: Input for no:NoPin, [
             PC11<0>,
             PF5<1>,
         ],
@@ -477,7 +477,7 @@ pub mod uart4 {
 pub mod uart5 {
     use super::*;
     pin! {
-        <Rx> default: PushPull for no:NoPin, [
+        <Rx> default: Input for no:NoPin, [
             PD2<0>,
         ],
         <Tx> default: PushPull for no:NoPin, [
