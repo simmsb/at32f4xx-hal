@@ -1,3 +1,6 @@
+use embassy_sync::waitqueue::AtomicWaker;
+
+use crate::interrupt;
 use crate::crm::{Enable, Reset};
 use crate::{
     gpio::{self, Analog},
@@ -6,6 +9,28 @@ use crate::{
 use core::fmt;
 
 mod f4;
+
+struct IntrState {
+    done_waker: AtomicWaker,
+}
+
+static ADC1_STATE: IntrState = IntrState {
+    done_waker: AtomicWaker::new(),
+};
+
+#[interrupt]
+fn ADC1() {
+    on_interrupt(unsafe { &*pac::ADC1::ptr() }, &ADC1_STATE);
+}
+
+fn on_interrupt(r: &pac::adc1::RegisterBlock, state: &IntrState) {
+    let sts = r.sts().read();
+    let ctrl = r.ctrl1().read();
+
+    if ctrl.cceien().is_enabled() && sts.occe().is_complete() {
+        r.ctrl1().modify(|_, w| w.cceien().disable());
+    }
+}
 
 /// Vref internal signal, used for calibration
 pub struct Vref;

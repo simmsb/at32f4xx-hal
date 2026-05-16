@@ -13,5 +13,9 @@ rustflags = [
 [build]
 target = "thumbv7em-none-eabi"
 
+[unstable]
+build-std = ["core", "alloc", "panic_abort"]
+build-std-features = ["optimize_for_size"]
+
 [env]
 DEFMT_LOG = "info"

@@ -1,13 +1,16 @@
 { pkgs, lib, config, inputs, ... }:
 
 {
-  packages = [
+  packages = with pkgs; [
+    flip-link
+    cargo-show-asm
+    cargo-bloat
   ];
 
   languages.rust = {
     enable = true;
-    channel = "stable";
+    channel = "nightly";
     targets = [ "thumbv7em-none-eabihf" ];
-    components = [ "rust-src" ];
+    components = [ "rustc" "cargo" "clippy" "rustfmt" "rust-analyzer" "rust-src" ];
   };
 }
