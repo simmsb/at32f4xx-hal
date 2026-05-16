@@ -1,5 +1,6 @@
 use core::task::Poll;
 
+use cortex_m::peripheral::NVIC;
 use defmt::unreachable;
 use embassy_sync::waitqueue::AtomicWaker;
 
@@ -68,6 +69,7 @@ impl<P: ReadPin, const CHANNEL: u8> ExtiInput<P, CHANNEL> {
 
 impl<const CHANNEL: u8, P: ExtiPin<CHANNEL> + ReadPin> ExtiInput<P, CHANNEL> {
     pub fn new(pin: P, _channel: ExtiChannel<CHANNEL>) -> Self {
+        unmask_exti_int(CHANNEL);
         Self { pin }
     }
 
@@ -118,9 +120,7 @@ impl ExtiInputFuture {
             enable_exti_interrupt(pin_num, true);
         });
 
-        Self {
-            pin_num,
-        }
+        Self { pin_num }
     }
 }
 
@@ -129,8 +129,7 @@ impl Drop for ExtiInputFuture {
         critical_section::with(|_| {
             let exti = unsafe { crate::pac::EXINT::steal() };
 
-            exti.inten()
-                .modify(|_, w| w.inten(self.pin_num).disable());
+            exti.inten().modify(|_, w| w.inten(self.pin_num).disable());
         });
     }
 }
@@ -240,6 +239,24 @@ macro_rules! exti_int {
             }
         )*
     };
+}
+
+fn unmask_exti_int(n: u8) {
+    let intr = match n {
+        0 => crate::interrupt::EXTINT0,
+        1 => crate::interrupt::EXTINT1,
+        2 => crate::interrupt::EXTINT2,
+        3 => crate::interrupt::EXTINT3,
+        4 => crate::interrupt::EXTINT4,
+        5..=9 => crate::interrupt::EXTINT9_5,
+        10..=15 => crate::interrupt::EXTINT15_10,
+        _ => return,
+    };
+
+    NVIC::unpend(intr);
+    unsafe {
+        NVIC::unmask(intr);
+    }
 }
 
 exti_int!(
