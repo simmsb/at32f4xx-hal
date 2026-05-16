@@ -31,6 +31,8 @@ fn on_interrupt(r: &pac::adc1::RegisterBlock, state: &IntrState) {
     if ctrl.cceien().is_enabled() && sts.occe().is_complete() {
         r.ctrl1().modify(|_, w| w.cceien().disable());
 
+        defmt::trace!("ADC1 INTR ccien:{} occe:{}",ctrl.cceien().is_enabled(), sts.occe().is_complete());
+
         state.done_waker.wake();
     }
 }
@@ -581,8 +583,8 @@ macro_rules! adc {
                 ))]
                 adc!(additionals: $adc_type => ($common_type));
 
-                #[cfg(any(feature = "at32f415"))]
-                fn calibrate(&mut self) {}
+                // #[cfg(any(feature = "at32f415"))]
+                // fn calibrate(&mut self) {}
 
                 pub fn $constructor_fn_name(adc: pac::$adc_type, reset: bool, config: config::AdcConfig) -> Adc<pac::$adc_type> {
                     unsafe {
@@ -649,6 +651,8 @@ macro_rules! adc {
                 /// Enables the adc
                 pub fn enable(&mut self) {
                     self.adc_reg.ctrl2().modify(|_, w| w.adcen().enable());
+
+                    cortex_m::asm::delay(120);
                 }
 
                 /// Disables the adc
@@ -663,6 +667,7 @@ macro_rules! adc {
 
                 #[cfg(any(
                     feature = "at32f421",
+                    feature = "at32f415",
                 ))]
                 pub fn calibrate(&mut self) {
                     self.enable();
@@ -864,6 +869,7 @@ macro_rules! adc {
                 where
                     PIN: Channel<pac::$adc_type, ID=u8>
                 {
+                    use core::sync::atomic::{Ordering, compiler_fence};
                     self.adc_reg.ctrl2().modify(|_, w| w
                         .ocdmaen().clear_bit() //Disable dma
                         .rpen().disable() //Disable continuous mode
@@ -879,18 +885,31 @@ macro_rules! adc {
                     self.configure_channel(pin, config::Sequence::One, sample_time);
 
                     self.set_end_of_conversion_interrupt(true);
+                    self.enable();
+                    self.clear_end_of_conversion_flag();
 
-                    self.start_conversion();
+                    defmt::trace!("adc1 start. cceien:{} occe:{}", self.adc_reg.ctrl1().read().cceien().is_enabled(), self.adc_reg.sts().read().occe().is_complete());
+
+                    self.adc_reg.ctrl2().modify(|_, w| w.ocswtrg().triggered());
+
+                    while self.adc_reg.sts().read().occs().is_idle() {}
 
                     core::future::poll_fn(|cx| {
                         ADC1_STATE.done_waker.register(cx.waker());
+                        self.adc_reg.ctrl1().modify(|_, w| w.cceien().enable());
+
+                        compiler_fence(Ordering::SeqCst);
+                        defmt::trace!("adc1 convert woken. occe:{}", self.adc_reg.sts().read().occe().is_not_complete());
 
                         if self.adc_reg.sts().read().occe().is_not_complete() {
+                            // defmt::info!("adc1 convert woken. cceien:{} occe:{}", self.adc_reg.ctrl1().read().cceien().is_enabled(), self.adc_reg.sts().read().occe().is_complete());
                             core::task::Poll::Pending
                         } else {
                             core::task::Poll::Ready(())
                         }
                     }).await;
+
+                    defmt::trace!("Conversion done");
 
                     self.adc_reg.sts().modify(|_, w| w.occs().clear());
                     self.set_end_of_conversion_interrupt(false);
