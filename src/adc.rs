@@ -1,12 +1,13 @@
 use embassy_sync::waitqueue::AtomicWaker;
 
-use crate::interrupt;
 use crate::crm::{Enable, Reset};
+use crate::interrupt;
 use crate::{
     gpio::{self, Analog},
     pac,
 };
 use core::fmt;
+use cortex_m::peripheral::NVIC;
 
 mod f4;
 
@@ -596,6 +597,9 @@ macro_rules! adc {
                             //Reset the peripheral(s)
                             pac::$adc_type::reset(crm);
                         }
+
+                        NVIC::unpend(interrupt::ADC1);
+                        NVIC::unmask(interrupt::ADC1);
                     }
 
                     let mut s = Self {
