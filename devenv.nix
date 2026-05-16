@@ -9,8 +9,8 @@
 
   languages.rust = {
     enable = true;
-    channel = "nightly";
-    targets = [ "thumbv7em-none-eabihf" ];
+    channel = "stable";
+    targets = [ "thumbv7em-none-eabi" ];
     components = [ "rustc" "cargo" "clippy" "rustfmt" "rust-analyzer" "rust-src" ];
   };
 }

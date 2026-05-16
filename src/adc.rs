@@ -29,6 +29,8 @@ fn on_interrupt(r: &pac::adc1::RegisterBlock, state: &IntrState) {
 
     if ctrl.cceien().is_enabled() && sts.occe().is_complete() {
         r.ctrl1().modify(|_, w| w.cceien().disable());
+
+        state.done_waker.wake();
     }
 }
 
@@ -854,7 +856,7 @@ macro_rules! adc {
 
                 /// Synchronously convert a single sample
                 /// Note that it reconfigures the adc sequence and doesn't restore it
-                pub fn convert<PIN>(&mut self, pin: &PIN, sample_time: config::SampleTime) -> u16
+                pub async fn convert<PIN>(&mut self, pin: &PIN, sample_time: config::SampleTime) -> u16
                 where
                     PIN: Channel<pac::$adc_type, ID=u8>
                 {
@@ -871,10 +873,23 @@ macro_rules! adc {
 
                     self.reset_sequence();
                     self.configure_channel(pin, config::Sequence::One, sample_time);
+
+                    self.set_end_of_conversion_interrupt(true);
+
                     self.start_conversion();
 
-                    //Wait for the sequence to complete
-                    self.wait_for_conversion_sequence();
+                    core::future::poll_fn(|cx| {
+                        ADC1_STATE.done_waker.register(cx.waker());
+
+                        if self.adc_reg.sts().read().occe().is_not_complete() {
+                            core::task::Poll::Pending
+                        } else {
+                            core::task::Poll::Ready(())
+                        }
+                    }).await;
+
+                    self.adc_reg.sts().modify(|_, w| w.occs().clear());
+                    self.set_end_of_conversion_interrupt(false);
 
                     let result = self.current_sample();
 
@@ -884,36 +899,6 @@ macro_rules! adc {
                     result
                 }
 
-            }
-
-            impl Adc<pac::$adc_type> {
-                fn read<PIN>(&mut self, pin: &mut PIN) -> nb::Result<u16, ()>
-                    where PIN: Channel<pac::$adc_type, ID=u8>,
-                {
-                    let enabled = self.is_enabled();
-                    if !enabled {
-                        self.enable();
-                    }
-
-                    let sample = self.convert(pin, self.config.default_sample_time);
-
-                    if !enabled {
-                        self.disable();
-                    }
-
-                    Ok(sample)
-                }
-            }
-
-            impl<PIN> OneShot<pac::$adc_type, u16, PIN> for Adc<pac::$adc_type>
-            where
-                PIN: Channel<pac::$adc_type, ID=u8>,
-            {
-                type Error = ();
-
-                fn read(&mut self, pin: &mut PIN) -> nb::Result<u16, Self::Error> {
-                    self.read::<PIN>(pin)
-                }
             }
 
         )+
