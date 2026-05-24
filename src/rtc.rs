@@ -6,8 +6,8 @@ use crate::pac;
 use crate::pac::{CRM, ERTC, PWC};
 use crate::{bb, crm::Enable as _};
 use core::fmt;
+use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike as _, Weekday};
 use fugit::RateExtU32;
-use time::{Date, PrimitiveDateTime, Time, Weekday};
 
 /// Invalid input error
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -43,13 +43,13 @@ impl From<Alarm> for Event {
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AlarmDay {
-    Date(Date),
+    Date(NaiveDate),
     Weekday(Weekday),
     EveryDay,
 }
 
-impl From<Date> for AlarmDay {
-    fn from(date: Date) -> Self {
+impl From<NaiveDate> for AlarmDay {
+    fn from(date: NaiveDate) -> Self {
         Self::Date(date)
     }
 }
@@ -301,7 +301,7 @@ impl Rtc {
     }
 
     /// Set the time using time::Time.
-    pub fn set_time(&mut self, time: &Time) -> Result<(), Error> {
+    pub fn set_time(&mut self, time: &NaiveTime) -> Result<(), Error> {
         let (ht, hu) = bcd2_encode(time.hour().into())?;
         let (mt, mu) = bcd2_encode(time.minute().into())?;
         let (st, su) = bcd2_encode(time.second().into())?;
@@ -418,15 +418,15 @@ impl Rtc {
     ///
     /// The year cannot be less than 1970, since the Unix epoch is assumed (1970-01-01 00:00:00).
     /// Also, the year cannot be greater than 2069 since the ERTC range is 0 - 99.
-    pub fn set_date(&mut self, date: &Date) -> Result<(), Error> {
+    pub fn set_date(&mut self, date: &NaiveDate) -> Result<(), Error> {
         if !(1970..=2069).contains(&date.year()) {
             return Err(Error::InvalidInputData);
         }
 
         let (yt, yu) = bcd2_encode((date.year() - 1970) as u32)?;
-        let (mt, mu) = bcd2_encode(u8::from(date.month()).into())?;
+        let (mt, mu) = bcd2_encode(date.month().into())?;
         let (dt, du) = bcd2_encode(date.day().into())?;
-        let wk = date.weekday().number_from_monday();
+        let wk = date.weekday().number_from_monday() as u8;
 
         self.modify(true, |regs| {
             regs.date().write(|w| {
@@ -447,15 +447,15 @@ impl Rtc {
     ///
     /// The year cannot be less than 1970, since the Unix epoch is assumed (1970-01-01 00:00:00).
     /// Also, the year cannot be greater than 2069 since the ERTC range is 0 - 99.
-    pub fn set_datetime(&mut self, date: &PrimitiveDateTime) -> Result<(), Error> {
+    pub fn set_datetime(&mut self, date: &NaiveDateTime) -> Result<(), Error> {
         if !(1970..=2069).contains(&date.year()) {
             return Err(Error::InvalidInputData);
         }
 
         let (yt, yu) = bcd2_encode((date.year() - 1970) as u32)?;
-        let (mnt, mnu) = bcd2_encode(u8::from(date.month()).into())?;
+        let (mnt, mnu) = bcd2_encode(date.month().into())?;
         let (dt, du) = bcd2_encode(date.day().into())?;
-        let wk = date.weekday().number_from_monday();
+        let wk = date.weekday().number_from_monday() as u8;
 
         let (ht, hu) = bcd2_encode(date.hour().into())?;
         let (mt, mu) = bcd2_encode(date.minute().into())?;
@@ -485,7 +485,7 @@ impl Rtc {
         Ok(())
     }
 
-    pub fn get_datetime(&mut self) -> PrimitiveDateTime {
+    pub fn get_datetime(&mut self) -> NaiveDateTime {
         // Wait for Registers synchronization flag,  to ensure consistency between the RTC_SSR, RTC_TR and RTC_DR shadow registers.
         while self.regs.sts().read().updf().bit_is_clear() {}
 
@@ -507,9 +507,9 @@ impl Rtc {
         let divb = self.regs.div().read().divb().bits();
         let nano = ss_to_nano(sbs, divb);
 
-        PrimitiveDateTime::new(
-            Date::from_calendar_date(year.into(), month.try_into().unwrap(), day).unwrap(),
-            Time::from_hms_nano(hours, minutes, seconds, nano).unwrap(),
+        NaiveDateTime::new(
+            NaiveDate::from_ymd_opt(year.into(), month.try_into().unwrap(), day.into()).unwrap(),
+            NaiveTime::from_hms_nano_opt(hours.into(), minutes.into(), seconds.into(), nano).unwrap(),
         )
     }
 
@@ -597,7 +597,7 @@ impl Rtc {
     /// Reads the stored value of the timestamp if present
     ///
     /// Clears the timestamp interrupt flags.
-    pub fn read_timestamp(&self) -> PrimitiveDateTime {
+    pub fn read_timestamp(&self) -> NaiveDateTime {
         while self.regs.sts().read().updf().bit_is_clear() {}
 
         // Timestamp doesn't include year, get it from the main calendar
@@ -616,9 +616,9 @@ impl Rtc {
         let divb = self.regs.div().read().divb().bits();
         let nano = ss_to_nano(sbs, divb);
 
-        PrimitiveDateTime::new(
-            Date::from_calendar_date(year.into(), month.try_into().unwrap(), day).unwrap(),
-            Time::from_hms_nano(hours, minutes, seconds, nano).unwrap(),
+        NaiveDateTime::new(
+            NaiveDate::from_ymd_opt(year.into(), month.try_into().unwrap(), day.into()).unwrap(),
+            NaiveTime::from_hms_nano_opt(hours.into(), minutes.into(), seconds.into(), nano).unwrap(),
         )
     }
 
@@ -628,12 +628,12 @@ impl Rtc {
         &mut self,
         alarm: Alarm,
         date: impl Into<AlarmDay>,
-        time: Time,
+        time: NaiveTime,
     ) -> Result<(), Error> {
         let date = date.into();
         let (daymask, wdsel, (dt, du)) = match date {
             AlarmDay::Date(date) => (false, false, bcd2_encode(date.day().into())?),
-            AlarmDay::Weekday(weekday) => (false, true, (0, weekday.number_days_from_monday())),
+            AlarmDay::Weekday(weekday) => (false, true, (0, weekday.num_days_from_monday() as u8)),
             AlarmDay::EveryDay => (true, false, (0, 0)),
         };
         let (ht, hu) = bcd2_encode(time.hour().into())?;
