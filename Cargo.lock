@@ -20,6 +20,7 @@ dependencies = [
  "embassy-time",
  "embedded-can",
  "embedded-hal 1.0.0",
+ "embedded-hal-async",
  "embedded-hal-nb",
  "embedded-io",
  "embedded-io-async",

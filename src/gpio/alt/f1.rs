@@ -511,3 +511,34 @@ pub mod can1 {
         type Tx = Tx;
     }
 }
+
+pub mod spi1 {
+    use super::*;
+
+    pin! {
+        <Miso, Input> for [
+            PA6<0>,
+            PB4<1>,
+        ],
+        <Mosi, PushPull> for [
+            PA7<0>,
+            PB5<1>,
+        ],
+        <Sck, PushPull> for [
+            PA5<0>,
+            PB3<1>,
+        ],
+        <Nss, PushPull> for [
+            PA4<0>,
+            PA15<1>,
+        ],
+    }
+
+    use crate::pac::SPI1 as SPI1;
+    impl SpiCommon for SPI1 {
+        type Miso = Miso;
+        type Mosi = Mosi;
+        type Nss = Nss;
+        type Sck = Sck;
+    }
+}

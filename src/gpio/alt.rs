@@ -78,9 +78,9 @@ macro_rules! pin {
         $(
             $(#[$docs])*
             pub enum $name {
-                $(
-                    None($NoPin<$Otype>),
-                )?
+                // $(
+                //     None($NoPin<$Otype>),
+                // )?
 
                 $(
                     $(#[$attr])*
@@ -90,6 +90,17 @@ macro_rules! pin {
 
             impl crate::Sealed for $name { }
 
+            impl $crate::gpio::EraseAlt<$Otype> for $name {
+                fn erase_alt(self) -> $crate::gpio::EAPin<$Otype> {
+                    match self {
+                        $(
+                            $(#[$attr])*
+                            Self::$PX(p) => p.erase_alt(),
+                        )*
+                    }
+                }
+            }
+
             #[allow(unreachable_patterns)]
             impl $crate::gpio::ReadPin for $name {
                 fn is_low(&self) -> bool {
@@ -98,7 +109,7 @@ macro_rules! pin {
                             $(#[$attr])*
                             Self::$PX(p) => p.is_low(),
                         )*
-                        _ => false,
+                        // _ => false,
                     }
                 }
             }
@@ -111,7 +122,7 @@ macro_rules! pin {
                             $(#[$attr])*
                             Self::$PX(p) => p.set_speed(_speed),
                         )*
-                        _ => {}
+                        // _ => {}
                     }
                 }
             }
@@ -124,7 +135,7 @@ macro_rules! pin {
                             $(#[$attr])*
                             Self::$PX(p) => p.set_internal_resistor(_pull),
                         )*
-                        _ => {}
+                        // _ => {}
                     }
                 }
             }
@@ -134,13 +145,13 @@ macro_rules! pin {
             //     extipin! { $( $(#[$attr])* $PX, )* }
             // }
 
-            $(
-                impl From<$NoPin<$Otype>> for $name {
-                    fn from(p: $NoPin<$Otype>) -> Self {
-                        Self::None(p)
-                    }
-                }
-            )?
+            // $(
+            //     impl From<$NoPin<$Otype>> for $name {
+            //         fn from(p: $NoPin<$Otype>) -> Self {
+            //             Self::None(p)
+            //         }
+            //     }
+            // )?
 
             $(
                 $(#[$attr])*
@@ -187,9 +198,9 @@ macro_rules! pin {
         $(
             $(#[$docs])*
             pub enum $name<Otype = $DefaultOtype> {
-                $(
-                    None($NoPin<Otype>),
-                )?
+                // $(
+                //     None($NoPin<Otype>),
+                // )?
 
                 $(
                     $(#[$attr])*
@@ -199,6 +210,18 @@ macro_rules! pin {
 
             impl<Otype> crate::Sealed for $name<Otype> { }
 
+            impl<Otype> $crate::gpio::EraseAlt<Otype> for $name<Otype> {
+                fn erase_alt(self) -> $crate::gpio::EAPin<Otype> {
+                    match self {
+                        $(
+                            $(#[$attr])*
+                            Self::$PX(p) => p.erase_alt(),
+                        )*
+                    }
+                }
+            }
+
+
             #[allow(unreachable_patterns)]
             impl<Otype> $crate::gpio::ReadPin for $name<Otype> {
                 fn is_low(&self) -> bool {
@@ -207,7 +230,7 @@ macro_rules! pin {
                             $(#[$attr])*
                             Self::$PX(p) => p.is_low(),
                         )*
-                        _ => false,
+                        // _ => false,
                     }
                 }
             }
@@ -220,7 +243,7 @@ macro_rules! pin {
                             $(#[$attr])*
                             Self::$PX(p) => p.set_speed(_speed),
                         )*
-                        _ => {}
+                        // _ => {}
                     }
                 }
             }
@@ -233,7 +256,7 @@ macro_rules! pin {
                             $(#[$attr])*
                             Self::$PX(p) => p.set_internal_resistor(_pull),
                         )*
-                        _ => {}
+                        // _ => {}
                     }
                 }
             }
@@ -243,13 +266,13 @@ macro_rules! pin {
             //     extipin! { $( $(#[$attr])* $PX, )* }
             // }
 
-            $(
-                impl<Otype> From<$NoPin<Otype>> for $name<Otype> {
-                    fn from(p: $NoPin<Otype>) -> Self {
-                        Self::None(p)
-                    }
-                }
-            )?
+            // $(
+            //     impl<Otype> From<$NoPin<Otype>> for $name<Otype> {
+            //         fn from(p: $NoPin<Otype>) -> Self {
+            //             Self::None(p)
+            //         }
+            //     }
+            // )?
 
             $(
                 $(#[$attr])*
@@ -412,10 +435,10 @@ pub trait SPdifIn<const C: u8> {
 
 // SPI pins
 pub trait SpiCommon {
-    type Miso;
-    type Mosi;
-    type Nss;
-    type Sck;
+    type Miso: crate::gpio::EraseAlt<crate::gpio::Input>;
+    type Mosi: crate::gpio::EraseAlt<crate::gpio::PushPull>;
+    type Nss: crate::gpio::EraseAlt<crate::gpio::PushPull>;
+    type Sck: crate::gpio::EraseAlt<crate::gpio::PushPull>;
 }
 
 // Timer pins

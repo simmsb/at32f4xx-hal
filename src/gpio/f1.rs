@@ -194,10 +194,10 @@ gpio!(GPIOA, gpioa, PA, 'A', PAn, 0b0000, [
     PA1: (pa1, 1, []),
     PA2: (pa2, 2, []),
     PA3: (pa3, 3, []),
-    PA4: (pa4, 4, []),
-    PA5: (pa5, 5, []),
-    PA6: (pa6, 6, []),
-    PA7: (pa7, 7, []),
+    PA4: (pa4, 4, [0]),
+    PA5: (pa5, 5, [0]),
+    PA6: (pa6, 6, [0]),
+    PA7: (pa7, 7, [0]),
     PA8: (pa8, 8, []),
     PA9: (pa9, 9, []),
     PA10: (pa10, 10, []),
@@ -213,9 +213,9 @@ gpio!(GPIOB, gpiob, PB, 'B', PBn, 0b0001, [
     PB0: (pb0, 0, []),
     PB1: (pb1, 1, []),
     PB2: (pb2, 2, []),
-    PB3: (pb3, 3, []), // JTDO-SWO, VeryHigh speed
-    PB4: (pb4, 4, []), // JTRST, PullUp
-    PB5: (pb5, 5, []),
+    PB3: (pb3, 3, [1]), // JTDO-SWO, VeryHigh speed
+    PB4: (pb4, 4, [1]), // JTRST, PullUp
+    PB5: (pb5, 5, [1]),
     PB6: (pb6, 6, []),
     PB7: (pb7, 7, []),
     PB8: (pb8, 8, []),

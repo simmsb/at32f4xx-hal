@@ -59,7 +59,9 @@ use core::marker::PhantomData;
 
 pub mod alt;
 mod convert;
+mod erased_alternate;
 pub use convert::PinMode;
+pub use erased_alternate::{EAPin, ErasedAltPin};
 mod partially_erased;
 pub use partially_erased::{PEPin, PartiallyErasedPin};
 mod erased;
@@ -120,7 +122,7 @@ pub struct Alternate<const A: u8, Otype = PushPull>(PhantomData<Otype>);
 pub struct Input;
 
 /// Pull setting for an input.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Pull {
     /// Floating
@@ -334,6 +336,10 @@ impl<const P: char, const N: u8, MODE> PinExt for Pin<P, N, MODE> {
     }
 }
 
+pub trait EraseAlt<MODE>: Sized {
+    fn erase_alt(self) -> ErasedAltPin<MODE>;
+}
+
 pub trait PinSpeed: Sized {
     /// Set pin speed
     fn set_speed(&mut self, speed: Speed);
@@ -391,6 +397,12 @@ impl<const P: char, const N: u8, MODE> Pin<P, N, MODE> {
     /// need all the elements to have the same type
     pub fn erase(self) -> ErasedPin<MODE> {
         ErasedPin::new(P as u8 - b'A', N)
+    }
+}
+
+impl<const P: char, const N: u8, const A: u8, MODE> EraseAlt<MODE> for Pin<P, N, Alternate<A, MODE>> {
+    fn erase_alt(self) -> ErasedAltPin<MODE> {
+        ErasedAltPin::new(P as u8 - b'A', N, A)
     }
 }
 

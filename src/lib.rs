@@ -117,6 +117,8 @@ pub mod iomux;
 pub mod exti;
 pub mod can;
 pub mod rtc;
+pub mod spi;
+// pub mod dma;
 
 mod sealed {
     pub trait Sealed {}
