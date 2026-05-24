@@ -116,6 +116,7 @@ pub mod uart;
 pub mod iomux;
 pub mod exti;
 pub mod can;
+pub mod rtc;
 
 mod sealed {
     pub trait Sealed {}

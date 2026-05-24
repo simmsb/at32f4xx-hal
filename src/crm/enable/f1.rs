@@ -9,6 +9,10 @@ bus! {
     CRC => (AHB, 6),
 }
 
+bus! {
+    PWC => (APB1, 28),
+}
+
 #[cfg(feature = "dma2")]
 bus! {
     DMA2 => (AHB, 1),
