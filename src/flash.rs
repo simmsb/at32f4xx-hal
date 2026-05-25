@@ -4,10 +4,10 @@ use embedded_storage::nor_flash::{
 
 use crate::pac::FLASH;
 use crate::signature::FlashSize;
-use core::{ptr, slice};
+use core::{ptr, slice, sync::atomic::compiler_fence};
 
 /// Flash erase/program error
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, defmt::Format)]
 pub enum Error {
     Programming,
     WriteProtection,
@@ -175,6 +175,9 @@ impl UnlockedFlash<'_> {
     /// Refer to the reference manual to see which page corresponds
     /// to which memory address.
     pub fn erase(&mut self, page: u8) -> Result<(), Error> {
+        defmt::trace!("Erasing flash page {:x}", page);
+
+        self.wait_ready();
         self.flash
             .addr()
             .write(|w| unsafe { w.fa().bits(page.into()) });
@@ -191,19 +194,19 @@ impl UnlockedFlash<'_> {
     where
         I: Iterator<Item = &'a u8>,
     {
+        defmt::trace!("Programming flash at offset {:x}", offset);
         let ptr = self.flash.address() as *mut u8;
         let mut bytes_written = 1;
         while bytes_written > 0 {
             bytes_written = 0;
             let amount = 16 - (offset % 16);
 
-            #[rustfmt::skip]
-            #[allow(unused_unsafe)]
-            self.flash.ctrl().modify(|_, w| unsafe {
-                w
-                    // programming
-                    .fprgm().set_bit()
-            });
+            self.wait_ready();
+            compiler_fence(core::sync::atomic::Ordering::SeqCst);
+
+            self.flash.ctrl().modify(|_, w| w.fprgm().set_bit());
+            compiler_fence(core::sync::atomic::Ordering::SeqCst);
+
             for _ in 0..amount {
                 match bytes.next() {
                     Some(byte) => {
@@ -216,7 +219,9 @@ impl UnlockedFlash<'_> {
                     None => break,
                 }
             }
+            compiler_fence(core::sync::atomic::Ordering::SeqCst);
             self.wait_ready();
+            compiler_fence(core::sync::atomic::Ordering::SeqCst);
             self.ok()?;
         }
 
@@ -370,11 +375,12 @@ impl<'a> ReadNorFlash for UnlockedFlash<'a> {
 impl<'a> NorFlash for UnlockedFlash<'a> {
     const WRITE_SIZE: usize = 1;
 
-    // Use largest sector size of 128 KB. All smaller sectors will be erased together.
-    const ERASE_SIZE: usize = 128 * 1024;
+    const ERASE_SIZE: usize = 2048;
 
     fn erase(&mut self, from: u32, to: u32) -> Result<(), Self::Error> {
         let mut current = from as usize;
+
+        defmt::trace!("Erasing flash from {:x} to {:x}", from, to);
 
         for sector in flash_sectors(self.flash.len(), self.flash.dual_bank()) {
             if sector.contains(current) {
@@ -394,6 +400,3 @@ impl<'a> NorFlash for UnlockedFlash<'a> {
         self.program(offset as usize, bytes.iter())
     }
 }
-
-// STM32F4 supports multiple writes
-impl<'a> MultiwriteNorFlash for UnlockedFlash<'a> {}

@@ -758,9 +758,9 @@ async fn wait_until_rx_ready(info: &Info) -> Result<(), Error> {
 
 #[inline(never)]
 pub(crate) fn flush_rx_fifo(regs: Regs) {
-    let sr = regs.sts().read();
+    // let sr = regs.sts().read();
 
-    defmt::trace!("Flush: {}", defmt::Debug2Format(&sr));
+    // defmt::trace!("Flush: {}", defmt::Debug2Format(&sr));
     while regs.sts().read().rdbf().is_full() {
         let _ = regs.dt().read().bits();
     }
