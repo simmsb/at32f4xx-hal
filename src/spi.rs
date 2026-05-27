@@ -995,10 +995,10 @@ fn on_interrupt(info: &Info) {
     }
 }
 
-#[interrupt]
-fn SPI1() {
-    on_interrupt(&SPI1_INFO);
-}
+// #[interrupt]
+// fn SPI1() {
+//     on_interrupt(&SPI1_INFO);
+// }
 
 // peri_trait!();
 

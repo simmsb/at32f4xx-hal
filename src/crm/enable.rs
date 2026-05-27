@@ -59,6 +59,7 @@ macro_rules! bus_reset {
         impl Reset for crate::pac::$PER {
             #[inline(always)]
             fn reset(crm: &CrmRB) {
+                defmt::trace!("Resetting peripheral: {}", stringify!($PER));
                 unsafe {
                     bb::set(Self::Bus::rstr(crm), $bit);
                     bb::clear(Self::Bus::rstr(crm), $bit);
