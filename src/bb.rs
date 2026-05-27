@@ -43,7 +43,7 @@ pub unsafe fn set<T>(register: *const T, bit: u8) {
 ///
 /// Some registers have reserved bits which should not be modified.
 #[inline]
-#[track_caller]
+// #[track_caller]
 pub unsafe fn write<T>(register: *const T, bit: u8, set: bool) {
     let addr = register as usize;
 

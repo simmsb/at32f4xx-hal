@@ -400,7 +400,9 @@ impl<const P: char, const N: u8, MODE> Pin<P, N, MODE> {
     }
 }
 
-impl<const P: char, const N: u8, const A: u8, MODE> EraseAlt<MODE> for Pin<P, N, Alternate<A, MODE>> {
+impl<const P: char, const N: u8, const A: u8, MODE> EraseAlt<MODE>
+    for Pin<P, N, Alternate<A, MODE>>
+{
     fn erase_alt(self) -> ErasedAltPin<MODE> {
         ErasedAltPin::new(P as u8 - b'A', N, A)
     }
@@ -439,12 +441,12 @@ impl<const P: char, const N: u8, MODE> Pin<P, N, MODE> {
     #[inline(always)]
     fn _set_high(&mut self) {
         // NOTE(unsafe) atomic write to a stateless register
-        unsafe { (*Gpio::<P>::ptr()).scr().write(|w| w.bits(1 << N)) };
+        unsafe { crate::bb::set((&*Gpio::<P>::ptr()).scr(), N) }
     }
     #[inline(always)]
     fn _set_low(&mut self) {
         // NOTE(unsafe) atomic write to a stateless register
-        unsafe { (*Gpio::<P>::ptr()).scr().write(|w| w.bits(1 << (16 + N))) };
+        unsafe { crate::bb::set((&*Gpio::<P>::ptr()).clr(), N) }
     }
     #[inline(always)]
     fn _is_set_low(&self) -> bool {

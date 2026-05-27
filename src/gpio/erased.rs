@@ -38,11 +38,11 @@ impl<MODE> defmt::Format for ErasedPin<MODE> {
 impl<MODE> PinExt for ErasedPin<MODE> {
     type Mode = MODE;
 
-    #[inline(always)]
+    #[inline]
     fn pin_id(&self) -> u8 {
         self.pin_port & 0x0f
     }
-    #[inline(always)]
+    #[inline]
     fn port_id(&self) -> u8 {
         self.pin_port >> 4
     }
@@ -95,14 +95,14 @@ impl<MODE> ErasedPin<MODE> {
 
 impl<MODE> ErasedPin<Output<MODE>> {
     /// Drives the pin high
-    #[inline(always)]
+    #[inline]
     pub fn set_high(&mut self) {
         // NOTE(unsafe) atomic write to a stateless register
         unsafe { self.block().scr().write(|w| w.bits(1 << self.pin_id())) };
     }
 
     /// Drives the pin low
-    #[inline(always)]
+    #[inline]
     pub fn set_low(&mut self) {
         // NOTE(unsafe) atomic write to a stateless register
         unsafe {
@@ -113,7 +113,7 @@ impl<MODE> ErasedPin<Output<MODE>> {
     }
 
     /// Is the pin in drive high or low mode?
-    #[inline(always)]
+    #[inline]
     pub fn get_state(&self) -> PinState {
         if self.is_set_low() {
             PinState::Low
@@ -123,7 +123,7 @@ impl<MODE> ErasedPin<Output<MODE>> {
     }
 
     /// Drives the pin high or low depending on the provided value
-    #[inline(always)]
+    #[inline]
     pub fn set_state(&mut self, state: PinState) {
         match state {
             PinState::Low => self.set_low(),
@@ -132,19 +132,19 @@ impl<MODE> ErasedPin<Output<MODE>> {
     }
 
     /// Is the pin in drive high mode?
-    #[inline(always)]
+    #[inline]
     pub fn is_set_high(&self) -> bool {
         !self.is_set_low()
     }
 
     /// Is the pin in drive low mode?
-    #[inline(always)]
+    #[inline]
     pub fn is_set_low(&self) -> bool {
         self.block().odt().read().bits() & (1 << self.pin_id()) == 0
     }
 
     /// Toggle pin output
-    #[inline(always)]
+    #[inline]
     pub fn toggle(&mut self) {
         if self.is_set_low() {
             self.set_high()
@@ -159,13 +159,13 @@ where
     MODE: marker::Readable,
 {
     /// Is the input pin high?
-    #[inline(always)]
+    #[inline]
     pub fn is_high(&self) -> bool {
         !self.is_low()
     }
 
     /// Is the input pin low?
-    #[inline(always)]
+    #[inline]
     pub fn is_low(&self) -> bool {
         self.block().idt().read().bits() & (1 << self.pin_id()) == 0
     }
