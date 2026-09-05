@@ -269,7 +269,9 @@ impl<const P: char, const SHIFT: u8, const MASK: u16, MODE> Bus<P, SHIFT, MASK, 
     fn _set_state(&mut self, state: u16) {
         unsafe {
             (*Gpio::<P>::ptr()).odt().modify(|r, w| {
-                let prev = if const { MASK & 0xFFFF == 0xFFFF } {
+                // we only need to read the previous state if the mask doesn't
+                // cover everything.
+                let prev = if const { MASK & 0xFFFF != 0xFFFF } {
                     r.bits() & !(MASK as u32)
                 } else {
                     0
